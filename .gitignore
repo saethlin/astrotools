@@ -1,0 +1,12 @@
+*~
+*.pyc
+*.pyo
+.cache
+C:*
+astrotools/*.fits
+.pypirc
+setup.cfg
+
+astrotools.egg-info
+build
+dist

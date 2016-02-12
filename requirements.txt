@@ -1,0 +1,7 @@
+numpy
+scipy
+astropy
+PIL/Pillow
+
+recommended but not required:
+numexpr
