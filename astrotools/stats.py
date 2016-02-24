@@ -3,7 +3,6 @@ TODO:
 Median trimmer
 '''
 import numpy as np
-import scipy
 
 
 def mad(arr,axis=None):
@@ -33,10 +32,22 @@ def bin_mean(x,y,nbin):
     error = np.empty(nbin)
     for c in range(bin_centers.size):
         mask = (x >= bin_centers[c]-binsize) & (x <= bin_centers[c]+binsize)
-        binned[c] = np.median(y[mask])
+        binned[c] = np.mean(y[mask])
         error[c] = np.std(y[mask])/np.sqrt(np.sum(mask))
     
-    return bin_centers,binned
+    return bin_centers,binned,error
+
+
+def bin_sum(data, nbin):
+    binsize = (data.max()-data.min()) / (2*nbin)
+    bin_centers = np.linspace(data.min()+binsize, data.max()-binsize, nbin)
+
+    binned = np.empty(nbin)
+    for c in range(bin_centers.size):
+        mask = (data >= bin_centers[c]-binsize) & (data <= bin_centers[c] + binsize)
+        binned[c] = np.sum(mask)
+
+    return bin_centers, binned
 
 
 def csmooth(x,y,interval):
