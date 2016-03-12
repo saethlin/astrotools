@@ -3,40 +3,43 @@
 import numpy as np
 from astropy.io import fits
 import scipy.ndimage
-from scipy.misc import imsave
 import scipy.fftpack
+import scipy.optimize
 
-'''
-Image centroid from image points im that match with a 2-d array pos, which
-contains the locations of each point in an all-positive coordinate system.
-'''
+
 def getcentroid(pos,im):
+    '''
+    Image centroid from image points im that match with a 2-d array pos, which
+    contains the locations of each point in an all-positive coordinate system.
+    '''
     return np.sum(im*pos[0])/np.sum(im),np.sum(im*pos[1])/np.sum(im)
 
 
-'''
-Intended only for use with detrend().
-'''
+
 def flatfunc(centroid,p0,p1,p2):
+    '''
+    Intended only for use with detrend().
+    '''
     return p0*centroid[:,0] + p1*centroid[:,1] + p2
 
 
-'''
-Detrend flux against centroid points. Returns normalized flux.
-'''
+
 def detrend(flux,centroid):
+    '''
+    Detrend flux against centroid points. Returns normalized flux.
+    '''
     for f in range(flux.shape[0]):
-        p,cov = curve_fit(flatfunc,centroid[f],flux[f])
+        p,cov = scipy.optimize.curve_fit(flatfunc,centroid[f],flux[f])
         flux[f] /= flatfunc(centroid[f],*p)
         flux[f] /= np.median(flux[f])
     return flux
 
 
-'''
-Aperture photometery on images contained in files at initial star positions
-near coords. Returns flux of each star with corresponding centroid locations.
-'''
 def photometer(files,coords,obj,sky=None):
+    '''
+    Aperture photometery on images contained in files at initial star positions
+    near coords. Returns flux of each star with corresponding centroid locations.
+    '''
     centroid = np.zeros((coords.shape[0],len(files),2))
     flux = np.zeros((coords.shape[0],len(files)))
     

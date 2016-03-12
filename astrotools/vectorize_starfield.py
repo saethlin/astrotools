@@ -10,7 +10,6 @@ from __future__ import division,print_function
 
 #Standard libarary imports first
 import os
-import sys
 
 #Downloaded packages second, I like to arrange them by how often they're used.
 #Import numpy as np because it's standard and cuts out a few characters
@@ -27,13 +26,14 @@ from scipy import ndimage
 from scipy.misc import imsave
 
 #Function definitions- won't be used until later
-'''
-The n-dimensional symmetric Gaussian distribution
-Expects coordinates x that look like [y0,y1,x0,x1] where y0 and y1 bound the
-y-values of the output, or x looks like [y1,y2,y3,...,x1,x2,x3,...]
-gaussian Integral = height*2*np.pi*np.sqrt(width)
-'''
+
 def gaussian(coordinates, height, *centroid_and_width):
+    """
+    The n-dimensional symmetric Gaussian distribution
+    Expects coordinates x that look like [y0,y1,x0,x1] where y0 and y1 bound the
+    y-values of the output, or x looks like [y1,y2,y3,...,x1,x2,x3,...]
+    gaussian Integral = height*2*np.pi*np.sqrt(width)
+    """
     
     width = centroid_and_width[-1]
     centroid = centroid_and_width[:-1]

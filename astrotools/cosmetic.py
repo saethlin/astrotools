@@ -7,8 +7,6 @@ import os
 
 import numpy as np
 from astropy.io import fits
-from scipy.optimize import curve_fit
-from scipy.ndimage import zoom
 from scipy.misc import imread,imsave
 
 
@@ -23,6 +21,7 @@ def linear_rescale(img):
 
 def find_nearest(array,value):
     return np.abs(array-value).argmin()
+
 
 def cosmeticRGB(blu_name,vis_name):
     
@@ -68,5 +67,3 @@ def cosmeticRGB(blu_name,vis_name):
     final[mask] = out
     imsave('modified.png',final)
     os.system('modified.png')
-
-#cosmeticRGB('test.fits','test.fits')

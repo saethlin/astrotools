@@ -14,10 +14,6 @@ from __future__ import division
 
 import numpy as np
 import scipy.special
-try:
-    from numexpr import evaluate as eval
-except ImportError:
-    raise Warning('This module will work without numexpr, but will be slower')
 
 from constants import c, h, k_b
 
@@ -72,7 +68,7 @@ def gaussian(coordinates, height, *centroid_and_width):
 
     dst = distance_squared(coordinates, centroid)
 
-    return eval('height*exp(-dst/(2*width**2))')
+    return height*np.exp(-dst/(2*width**2))
 
 
 def lorentzian(coordinates, height, *centroid_and_width):
@@ -99,7 +95,7 @@ def lorentzian(coordinates, height, *centroid_and_width):
 
     dst = distance_squared(coordinates, centroid)
 
-    return eval('height*width**2/(dst + width**2)')
+    return height*width**2/(dst + width**2)
 
 
 def voigt(coordinates, height, *centroid_and_width):
@@ -126,7 +122,7 @@ def voigt(coordinates, height, *centroid_and_width):
 
     dst = distance_squared(coordinates, centroid)
 
-    z = eval('(dst+(abs(Lc)*1j))/(abs(Gc)*sqrt(2))')
+    z = eval(dst+(abs(Lc)*1j))/(abs(Gc)*np.sqrt(2))
 
     return height * scipy.special.wofz(dst).real/(abs(Gc)*np.sqrt(2*np.pi))
 
@@ -145,7 +141,4 @@ def planck(wavelength,temp):
 
     wavelength = np.array(wavelength)
 
-    return eval('2*h*(c**2)/(wavelength**5*(expm1(h*c/(wavelength*k_b*temp))))'
-               )
-
-
+    return 2*h*(c**2)/(wavelength**5*(np.expm1(h*c/(wavelength*k_b*temp))))

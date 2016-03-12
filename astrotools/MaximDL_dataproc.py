@@ -131,8 +131,7 @@ def MaximDL_dataproc(directory):
             hdu.add_checksum()
             
             hdulist = fits.HDUList(hdus=[hdu])
-            
+
             if not os.path.isdir('processed'):
                 os.mkdir('processed')
             hdulist.writeto('processed/'+name+'_proc.fits')
-   

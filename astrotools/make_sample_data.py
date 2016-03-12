@@ -3,12 +3,12 @@
 We need some data for vectorize_starfield to work on, better make some
 '''
 from __future__ import division, print_function
-import os
 import sys
 
 import numpy as np
 from distributions import gaussian
 from astropy.io import fits
+
 
 def make_sample_data(output_filename):
 
