@@ -1,15 +1,13 @@
 from __future__ import division, print_function
 
 import os
-import Tkinter as tk
 import time
-from datetime import datetime
 import ctypes
+import Tkinter as tk
+from datetime import datetime
 
 import numpy as np
 import ephem
-import matplotlib.pyplot as plt
-
 from scipy.misc import imsave
 
 # Image save path
@@ -30,19 +28,18 @@ screen_radius = np.sqrt(screen_height**2 + screen_width**2)/2
 image = np.zeros((screen_height+20, screen_width+20))
 
 # Load star locations
-star_data = np.loadtxt('star_list.txt')
-
-right_ascension = star_data[:,0]*np.pi/180
-declination = star_data[:,1]*np.pi/180
-b_mag = star_data[:,2]
-v_mag = star_data[:,3]
-
-altitude = np.empty_like(right_ascension)
-azimuth = np.empty_like(declination)
-
 stars = set()
-for i in range(len(declination)):
-    stars.add(ephem.readdb('star,f|S,'+str(ephem.hours(right_ascension[i]))+','+str(ephem.degrees(declination[i]))+','+str(v_mag[i])))
+with open('simbad.tsv') as star_data:
+    for line in star_data:
+        if line[0].isdigit() and '~' not in line:
+            _, coordinates, b_mag, v_mag = line.split('\t')
+            groups = coordinates.split()
+            right_ascension, declination = ':'.join(groups[:3]), ':'.join(groups[3:])
+            stars.add(ephem.readdb('star,f|S,{},{},{}'.format(right_ascension, declination, v_mag)))
+
+altitude = np.empty(len(stars))
+azimuth = np.empty(len(stars))
+v_mag = np.empty(len(stars))
 
 while True:
     start = datetime.now()
@@ -70,7 +67,6 @@ while True:
     part_v_mag = v_mag[mask]
     part_v_mag -= part_v_mag.max()
     part_v_mag *= -1
-    part_v_mag = part_v_mag.clip(0,3)
 
     image *= 0
     screen_y += 10
@@ -83,7 +79,8 @@ while True:
         star_image *= part_v_mag[i]/np.sum(star_image)
         image[y-5:y+6, x-5:x+6] += star_image
 
-    image = image.clip(0,part_v_mag.max())
+    image = np.log10(3*image+1)
+    #image = image.clip(0,0.9)
 
     imsave('test.png', image[10:-10,10:-10])
 
@@ -91,4 +88,4 @@ while True:
     ctypes.windll.user32.SystemParametersInfoA(SPI_SETDESKWALLPAPER, 0, save_path, 2)
     print(datetime.now()-start)
 
-    time.sleep(1)
+    time.sleep(2)
