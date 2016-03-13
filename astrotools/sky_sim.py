@@ -1,3 +1,9 @@
+"""
+TODO:
+Set size and image padding based on psf size
+Add color based on B-V or temperature
+Try adding constellation lines
+"""
 from __future__ import division, print_function
 
 import os
@@ -14,8 +20,9 @@ from scipy.misc import imsave
 save_path = os.path.join(os.getcwd(), 'test.png')
 
 # Star psf dimensions
-size = 11
 psf = 2
+size = 2*np.sqrt(2*np.log(255/2))*psf
+size = np.ceil(size) // 2 * 2 + 1
 
 # Use tkinter to get screen dimensions
 root = tk.Tk()
@@ -25,7 +32,7 @@ root.destroy()
 screen_radius = np.sqrt(screen_height**2 + screen_width**2)/2
 
 # Initialize image
-image = np.zeros((screen_height+20, screen_width+20))
+image = np.zeros((screen_height+size//2*2, screen_width+size//2*2))
 
 # Load star locations
 stars = set()
@@ -69,20 +76,20 @@ while True:
     part_v_mag *= -1
 
     image *= 0
-    screen_y += 10
-    screen_x += 10
+    screen_y += size//2
+    screen_x += size//2
     for i in range(screen_y.size):
         y,x = int(screen_y[i]), int(screen_x[i])
         y_c,x_c = screen_y[i]-y, screen_x[i]-x
-        dst = np.sqrt((np.arange(size)[:,None]-5-y_c)**2 + (np.arange(size)-5-x_c)**2)
+        dst = np.sqrt((np.arange(size)[:,None]-size//2-y_c)**2 + (np.arange(size)-size//2-x_c)**2)
         star_image = np.exp(-dst**2/psf**2)
         star_image *= part_v_mag[i]/np.sum(star_image)
-        image[y-5:y+6, x-5:x+6] += star_image
+        image[y-size//2:y+size//2+1, x-size//2:x+size//2+1] += star_image
 
+    # Rescale the image
     image = np.log10(3*image+1)
-    #image = image.clip(0,0.9)
 
-    imsave('test.png', image[10:-10,10:-10])
+    imsave('test.png', image[size//2:-size//2,size//2:-size//2])
 
     SPI_SETDESKWALLPAPER = 20
     ctypes.windll.user32.SystemParametersInfoA(SPI_SETDESKWALLPAPER, 0, save_path, 2)
