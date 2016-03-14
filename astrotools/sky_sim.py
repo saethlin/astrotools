@@ -19,8 +19,10 @@ from scipy.misc import imsave
 # Image save path
 save_path = os.path.join(os.getcwd(), 'test.png')
 
-# Star psf dimensions
-psf = 2
+# Star psf size
+psf = 1
+
+# Determine size of the region to plot the stellar psf on
 size = 2*np.sqrt(2*np.log(255/2))*psf
 size = np.ceil(size) // 2 * 2 + 1
 
@@ -36,6 +38,7 @@ image = np.zeros((screen_height+size//2*2, screen_width+size//2*2))
 
 # Load star locations
 stars = set()
+"""
 with open('simbad.tsv') as star_data:
     for line in star_data:
         if line[0].isdigit() and '~' not in line:
@@ -43,6 +46,12 @@ with open('simbad.tsv') as star_data:
             groups = coordinates.split()
             right_ascension, declination = ':'.join(groups[:3]), ':'.join(groups[3:])
             stars.add(ephem.readdb('star,f|S,{},{},{}'.format(right_ascension, declination, v_mag)))
+"""
+
+with open('orion.txt') as star_data:
+    for line in star_data:
+        right_ascension, declination, mag = line.split()
+        stars.add(ephem.readdb('star,f|S,{},{},{}'.format(right_ascension, declination, mag)))
 
 altitude = np.empty(len(stars))
 azimuth = np.empty(len(stars))
