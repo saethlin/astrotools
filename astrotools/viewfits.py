@@ -114,7 +114,7 @@ class Viewer(tk.Frame):
         self.dirlist.pack(side=tk.LEFT, fill=tk.BOTH, expand=1)
         self.scrollbar.config(command=self.dirlist.yview)
 
-        self.frame.bind('<Control-o>', self.load_image)
+        self.bind_all('<Control-o>', self.open_dialog)
 
         # Controls for navigating the list of current directory contents
         self.bind_all('<Right>', self.open_item)
@@ -133,8 +133,6 @@ class Viewer(tk.Frame):
         self.parent.protocol("WM_DELETE_WINDOW", self.parent.quit)
 
         self.bind_all('<Control-h>', self.show_help)
-
-
 
         # Defaults
         self.save_dir = os.getcwd()
@@ -438,22 +436,24 @@ class Viewer(tk.Frame):
 
         self.parent.after(500, self.reload_dirlist)
 
-    def load_image(self, event):
+    def open_dialog(self, event):
+        self.filename = filedialog.askopenfilename(
+            filetypes=[('FITS files', '*.fit;*.fits;*.FIT;*.FITS'),
+                       ('all files', '*')],
+            initialdir=os.getcwd())
+
+        if self.filename not in ('', ()):
+            os.chdir(os.path.dirname(self.filename))
+            self.load_image(self.filename)
+        else:
+            return
+
+    def load_image(self, filename):
         """
         Read an image and make sure the display and interface are initalized
         """
-        if isinstance(event, str):
-            self.filename = os.path.join(os.getcwd(), event)
-        else:
-            self.filename = filedialog.askopenfilename(
-                filetypes=[('FITS files', '*.fit;*.fits;*.FIT;*.FITS'),
-                           ('all files', '*')],
-                initialdir=os.getcwd())
-
-            if self.filename != '':
-                os.chdir(os.path.dirname(self.filename))
-            else:
-                return
+        if not os.path.isabs(filename):
+            self.filename = os.path.join(os.getcwd(), filename)
 
         # Set backgrounds to the same gray as the default frame background
         self.main_image.config(bg='#f4f4f4')
@@ -805,7 +805,7 @@ class Viewer(tk.Frame):
 
             self.main_image.photo.save(path)
 
-    def close_help(self, event):
+    def close_help(self, *args):
         """
         Remove the help window
         """
