@@ -460,6 +460,13 @@ class Viewer(tk.Frame):
         self.mini_label.config(bg='#f4f4f4')
 
         # Load image data and set defaults
+        try:
+            temp_data = fits.open(self.filename)[0].data
+            if temp_data.ndim != 2:
+                return
+        except IOError:
+            pass
+        
         self.imagedata = fits.open(self.filename)[0].data
 
         self.black_level = np.percentile(self.imagedata, 10.)
