@@ -39,6 +39,7 @@ from PIL import Image
 from PIL import ImageTk
 from astropy.io import fits
 from matplotlib import pyplot as plt
+import time
 
 MYNAME = 'viewfits 0.9'
 EXTENSIONS = ['fit', 'fits', 'FIT', 'FITS']
@@ -452,6 +453,7 @@ class Viewer(tk.Frame):
         """
         Read an image and make sure the display and interface are initalized
         """
+        start = time.time()
         if not os.path.isabs(filename):
             self.filename = os.path.join(os.getcwd(), filename)
 
@@ -468,7 +470,6 @@ class Viewer(tk.Frame):
             pass
 
         self.imagedata = fits.open(self.filename)[0].data
-
         self.black_level = np.percentile(self.imagedata, 10.)
         self.white_level = np.percentile(self.imagedata, 99.9)
         self.zoom = 1.
@@ -499,6 +500,7 @@ class Viewer(tk.Frame):
             self.main_image.image = self.main_image.create_image(0, 0,
                                                                  image=None,
                                                                  anchor='nw')
+
         self.clip_image()
         self.redraw_image()
         self.redraw_minimap()
@@ -745,12 +747,13 @@ class Viewer(tk.Frame):
                                    fill='blue', tag='bline')
         self.histogram.create_line(self.white_x, 0, self.white_x, 50,
                                    fill='blue', tag='wline')
-
+    @profile
     def make_histogram_fig(self):
         """
         Plot a histogram of the image data with axes scaled to enhance features
         """
-        plt.cla()
+        start = time.time()
+        plt.clf()
 
         data = self.imagedata.ravel().copy()
 
@@ -797,6 +800,8 @@ class Viewer(tk.Frame):
 
         w, h, d = buf.shape
         self.hist_full = Image.frombytes("RGB", (w, h), buf.tostring())
+        print(time.time()-start)
+        exit()
 
     def save_image(self, event):
         """
