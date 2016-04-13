@@ -466,7 +466,7 @@ class Viewer(tk.Frame):
                 return
         except IOError:
             pass
-        
+
         self.imagedata = fits.open(self.filename)[0].data
 
         self.black_level = np.percentile(self.imagedata, 10.)
