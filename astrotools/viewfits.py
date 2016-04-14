@@ -352,7 +352,7 @@ class Viewer(tk.Frame):
         """
         Select the item below the current selection in the dirlist
         """
-        if self.selection < len(self.files):
+        if self.selection < len(self.files)-1:
             self.selection += 1
             self.dirlist.selection_clear(0, tk.END)
             self.dirlist.selection_set(self.selection)
