@@ -8,10 +8,8 @@ This is a program for looking at images, not for doing analysis.
 
 TODO:
 Render the dirlist if launched without a file
-Manually draw the histogram, shouldn't be too hard
 There should be a way to center images on loading
 Sliders and lines don't quite line up with edges of the plot
-
 Clean
 """
 from __future__ import division, print_function
