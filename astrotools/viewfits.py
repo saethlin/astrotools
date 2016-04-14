@@ -7,6 +7,7 @@ stop-gap and submit an issue. Controls ought to be obvious, help me make them.
 This is a program for looking at images, not for doing analysis.
 
 TODO:
+Add automatic dependency installation?
 Render the dirlist if launched without a file
 There should be a way to center images on loading
 Sliders and lines don't quite line up with edges of the plot
@@ -29,8 +30,6 @@ import numpy as np
 from PIL import Image
 from PIL import ImageTk
 from astropy.io import fits
-from matplotlib import pyplot as plt
-import time
 
 MYNAME = 'viewfits 0.9'
 EXTENSIONS = ['fit', 'fits', 'FIT', 'FITS']
