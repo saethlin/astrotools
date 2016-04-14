@@ -342,23 +342,21 @@ class Viewer(tk.Frame):
         """
         Select the item above the current selection in the dirlist
         """
-        self.selection -= 1
-        if self.selection == -1:
-            self.selection = 0
-        self.dirlist.selection_clear(0, tk.END)
-        self.dirlist.selection_set(self.selection)
-        self.dirlist.see(self.selection)
+        if self.selection > 0:
+            self.selection -= 1
+            self.dirlist.selection_clear(0, tk.END)
+            self.dirlist.selection_set(self.selection)
+            self.dirlist.see(self.selection)
 
     def down(self, event):
         """
         Select the item below the current selection in the dirlist
         """
-        self.selection += 1
-        if self.selection == len(self.files):
-            self.selection -= 1
-        self.dirlist.selection_clear(0, tk.END)
-        self.dirlist.selection_set(self.selection)
-        self.dirlist.see(self.selection)
+        if self.selection < len(self.files):
+            self.selection += 1
+            self.dirlist.selection_clear(0, tk.END)
+            self.dirlist.selection_set(self.selection)
+            self.dirlist.see(self.selection)
 
     def back(self, event):
         """
