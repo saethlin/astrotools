@@ -141,6 +141,7 @@ class Viewer(tk.Frame):
         self.white_level = 0
         self.help_window = None
         self.h, self.w = 0, 0
+        self.updating = False
 
         self.mini_label.photo = ImageTk.PhotoImage(Image.fromarray(np.zeros((THUMBSIZE, THUMBSIZE))))
         self.mini_label.config(image=self.mini_label.photo)
@@ -379,31 +380,36 @@ class Viewer(tk.Frame):
         """
         Update the dirlist to the contents of the current directory
         """
-        new_files = [f for f in os.listdir('.') if (
-            f.rsplit('.', 1)[-1] in EXTENSIONS) or (
-                os.path.isdir(f) and os.access(f, os.R_OK)) and
-                     not f.startswith('.')]
+        try:
+            new_files = [f for f in os.listdir('.') if (
+                f.rsplit('.', 1)[-1] in EXTENSIONS) or (
+                    os.path.isdir(f) and os.access(f, os.R_OK)) and
+                         not f.startswith('.')]
 
-        new_files.sort(key=str.lower)
+            new_files.sort(key=str.lower)
 
-        new_files.append('..')
+            new_files.append('..')
 
-        removals = [f for f in self.files if f not in new_files]
-        additions = [f for f in new_files if f not in self.files]
+            removals = [f for f in self.files if f not in new_files]
+            additions = [f for f in new_files if f not in self.files]
 
-        for fil in removals:
-            remove_index = self.files.index(fil)
-            self.dirlist.delete(remove_index)
-            self.files.remove(fil)
+            for fil in removals:
+                remove_index = self.files.index(fil)
+                self.dirlist.delete(remove_index)
+                self.files.remove(fil)
 
-        for fil in additions:
-            insert_index = bisect.bisect(self.files, fil)
-            if insert_index == len(self.files):
-                insert_index -= 1
-            self.files.insert(insert_index, fil)
-            self.dirlist.insert(insert_index, fil)
+            for fil in additions:
+                insert_index = bisect.bisect(self.files, fil)
+                if insert_index == len(self.files):
+                    insert_index -= 1
+                self.files.insert(insert_index, fil)
+                self.dirlist.insert(insert_index, fil)
 
-        self.parent.after(500, self.reload_dirlist)
+        except WindowsError:
+            pass
+
+        finally:
+            self.parent.after(500, self.reload_dirlist)
 
     def refresh_dirlist(self, repeat=False):
         """
