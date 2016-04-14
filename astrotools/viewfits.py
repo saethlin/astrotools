@@ -202,8 +202,8 @@ class Viewer(tk.Frame):
         """
         Display the cursor location and image value at that location
         """
-        y = int(np.floor(self.ypos + event.y/self.zoom))
-        x = int(np.floor(self.xpos + event.x/self.zoom))
+        y = int(round(self.ypos + event.y/self.zoom - 1))
+        x = int(round(self.xpos + event.x/self.zoom - 1))
 
         if y < self.imagedata.shape[0] and x < self.imagedata.shape[1]:
             self.cursor_position.configure(text='Cursor: '+str(y)+', '+str(x))
