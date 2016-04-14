@@ -8,8 +8,7 @@ This is a program for looking at images, not for doing analysis.
 
 TODO:
 Add automatic dependency installation?
-Render the dirlist if launched without a file
-There should be a way to center images on loading
+Investigate source of pointy histogram
 Sliders and lines don't quite line up with edges of the plot
 Clean
 """
@@ -118,7 +117,6 @@ class Viewer(tk.Frame):
 
         self.dirlist.bind('<<ListboxSelect>>', self.click_list)
         self.dirlist.bind('<Double-Button-1>', self.open_item)
-        self.dirlist.bind('<MouseWheel>', self.scroll_list)
 
         self.bind_all('<Escape>', quit)
         self.parent.protocol("WM_DELETE_WINDOW", self.parent.quit)
@@ -144,18 +142,20 @@ class Viewer(tk.Frame):
         self.help_window = None
         self.h, self.w = 0, 0
 
-        self.clipped = None
+        self.mini_label.photo = ImageTk.PhotoImage(Image.fromarray(np.zeros((THUMBSIZE, THUMBSIZE))))
+        self.mini_label.config(image=self.mini_label.photo)
+
+        self.main_image.photo = ImageTk.PhotoImage(Image.fromarray(np.zeros((HEIGHT-HISTOGRAM_HEIGHT, WIDTH-THUMBSIZE))))
+        self.main_image.itemconfig(self.main_image.image,
+                                   image=self.main_image.photo)
+
+        self.main_image.config(bg='#f4f4f4')
+        self.mini_label.config(bg='#f4f4f4')
 
         self.refresh_dirlist()
 
         if open_file is not None:
             self.load_image(open_file)
-
-    def scroll_list(self, event):
-        """
-        Scroll the listbox view; linux-only
-        """
-        self.dirlist.yview_scroll(-event.delta//120, 'units')
 
     def keybindings(self):
         """
@@ -170,10 +170,10 @@ class Viewer(tk.Frame):
 
         self.bind_all('<MouseWheel>', self.mousewheel_windows)
 
-        #self.bind_all('<Button-4>', self.mousewheelup_linux)
-        #self.bind_all('<Button-4>', self.mousewheelup_linux)
-        #self.bind_all('<Button-5>', self.mousewheeldown_linux)
-        #self.bind_all('<Button-5>', self.mousewheeldown_linux)
+        self.bind_all('<Button-4>', self.mousewheelup_linux)
+        self.bind_all('<Button-4>', self.mousewheelup_linux)
+        self.bind_all('<Button-5>', self.mousewheeldown_linux)
+        self.bind_all('<Button-5>', self.mousewheeldown_linux)
 
         self.mini_label.bind('<Button-1>', self.click_thumbnail)
         self.mini_label.bind('<B1-Motion>', self.click_thumbnail)
@@ -490,6 +490,10 @@ class Viewer(tk.Frame):
             self.main_image.image = self.main_image.create_image(0, 0,
                                                                  image=None,
                                                                  anchor='nw')
+
+        self.xpos = (self.imagedata.shape[1]-self.w)//2
+        self.ypos = (self.imagedata.shape[0]-self.h)//2
+
         self.clip_image()
         self.redraw_image()
         self.redraw_minimap()
@@ -497,26 +501,6 @@ class Viewer(tk.Frame):
 
         # Make sure keybindings are initalized
         self.keybindings()
-
-        #self.bind_all('<Configure>', self.center_image)
-
-    def center_image(self, event):
-        """
-        Center the image view on the displayed image
-        """
-
-        # w = WIDTH - THUMBSIZE - 4
-        # h = HEIGHT - HISTOGRAM_HEIGHT - 10 - 2
-
-        if self.main_image.winfo_width() != 1:
-            self.check_view()
-            self.xpos = (self.imagedata.shape[1]-self.w)//2
-            self.ypos = (self.imagedata.shape[0]-self.h)//2
-            self.check_view()
-            self.redraw_image()
-            self.redraw_minimap()
-
-            self.bind_all('<Configure>', self.on_resize)
 
     def renew_scaling(self, event):
         """
@@ -739,7 +723,7 @@ class Viewer(tk.Frame):
         """
         Plot a histogram of the image data with axes scaled to enhance features
         """
-        data = self.imagedata.ravel()[::100]
+        data = self.imagedata.ravel()
 
         # Clipping data makes the histogram look nice but the sliders useless, so just clip the histogram
         lower_bound, upper_bound = np.percentile(data, [0.01, 99.95])
