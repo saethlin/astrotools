@@ -152,7 +152,7 @@ class Viewer(tk.Frame):
         self.main_image.config(bg='#f4f4f4')
         self.mini_label.config(bg='#f4f4f4')
 
-        self.refresh_dirlist()
+        self.refresh_dirlist(repeat=True)
 
         if open_file is not None:
             self.load_image(open_file)
@@ -405,7 +405,7 @@ class Viewer(tk.Frame):
 
         self.parent.after(500, self.reload_dirlist)
 
-    def refresh_dirlist(self):
+    def refresh_dirlist(self, repeat=False):
         """
         Display entries in the current directory in the directory list
         """
@@ -427,7 +427,8 @@ class Viewer(tk.Frame):
         self.dirlist.selection_clear(0, tk.END)
         self.dirlist.selection_set(0)
 
-        self.parent.after(500, self.reload_dirlist)
+        if repeat:
+            self.parent.after(500, self.reload_dirlist)
 
     def open_dialog(self, event):
         self.filename = filedialog.askopenfilename(
