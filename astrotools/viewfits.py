@@ -463,13 +463,13 @@ class Viewer(tk.Frame):
 
         # Load image data and set defaults
         try:
-            temp_data = fits.open(self.filename)[0].data
+            temp_data = fits.open(self.filename)[1].data
             if temp_data.ndim != 2:
                 return
         except IOError:
             pass
         
-        self.imagedata = fits.open(self.filename)[0].data
+        self.imagedata = temp_data
         self.black_level = np.percentile(self.imagedata, 10.)
         self.white_level = np.percentile(self.imagedata, 99.9)
         self.zoom = 1.
@@ -758,7 +758,13 @@ class Viewer(tk.Frame):
         data = self.imagedata.ravel().copy()
 
         # Clipping data makes the histogram look nice but the sliders useless
+        low_index = int(data.size*0.0001)
+        lower_bound = np.partition(data, low_index)[low_index]
+        upper_index = int(data.size*0.9995)
+        upper_bound = np.partition(data, upper_index)[upper_index]
+
         lower_bound, upper_bound = np.percentile(data, [0.01, 99.95])
+
         mask = (data > lower_bound) & (data < upper_bound)
         data = data[mask]
 
@@ -769,7 +775,9 @@ class Viewer(tk.Frame):
 
         plt.fill_between(bins, 0, hist, color='k')
         plt.xlim(bins[0], bins[-1])
-        plt.ylim(0, hist.max())
+
+        plt.xlim(lower_bound, upper_bound)
+        plt.ylim(0, 1)
 
         plt.axis('off')
         fig = plt.gcf()
