@@ -8,32 +8,24 @@ This is a program for looking at images, not for doing analysis.
 
 TODO:
 Render the dirlist if launched without a file
-There should be a better way to center images on loading
-Fix initial setup when loaded with no file
-Rescale button?
+Manually draw the histogram, shouldn't be too hard
+There should be a way to center images on loading
 Sliders and lines don't quite line up with edges of the plot
 
-FPS print
-Allow sliding histogram?
-Rescale histogram x-axis to allow display of entire range
 Clean
 """
 from __future__ import division, print_function
 
 import os
-import sys
 import argparse
 import bisect
-from datetime import datetime
 
-
-if sys.version[0] > '3':
+try:
     import tkinter as tk
     from tkinter import filedialog
-else:
+except ImportError:
     import Tkinter as tk
     import tkFileDialog as filedialog
-
 
 import numpy as np
 from PIL import Image
@@ -256,7 +248,6 @@ class Viewer(tk.Frame):
         """
         Zoom in, if possible
         """
-        print('test')
         if self.zoom < 16:
             if self.fitted:
                 self.fitted = False
@@ -272,7 +263,6 @@ class Viewer(tk.Frame):
         """
         Zoom out, if possible
         """
-        print('test')
         if self.zoom > 1/16:
             if self.fitted:
                 self.fitted = False
@@ -397,7 +387,7 @@ class Viewer(tk.Frame):
                 os.path.isdir(f) and os.access(f, os.R_OK)) and
                      not f.startswith('.')]
 
-        new_files.sort()
+        new_files.sort(key=str.lower)
 
         new_files.append('..')
 
@@ -429,7 +419,7 @@ class Viewer(tk.Frame):
                 os.path.isdir(f) and os.access(f, os.R_OK)) and
                       not f.startswith('.')]
 
-        self.files.sort()
+        self.files.sort(key=str.lower)
 
         self.files.append('..')
 
@@ -468,17 +458,14 @@ class Viewer(tk.Frame):
         self.mini_label.config(bg='#f4f4f4')
 
         # Load image data and set defaults
-        try:
-            temp_data = fits.open(self.filename)[0].data
-            if temp_data.ndim != 2:
-                return
-        except IOError:
-            pass
+        temp_data = fits.open(self.filename)[0].data
+        if temp_data is None or temp_data.ndim != 2:
+            raise IOError('Invalid fits file')
 
         self.imagedata = temp_data
 
-        self.black_level = np.percentile(self.imagedata, 10.)
-        self.white_level = np.percentile(self.imagedata, 99.9)
+        self.black_level = np.percentile(self.imagedata.ravel()[::100], 10.)
+        self.white_level = np.percentile(self.imagedata.ravel()[::100], 99.9)
         self.zoom = 1.
 
         self.ypos = 0
@@ -490,8 +477,7 @@ class Viewer(tk.Frame):
         self.last_x = self.xpos+self.w//2
 
         # Generate a default save name
-        self.savename = os.path.basename(self.filename)
-        self.savename = self.savename.rsplit('.', 1)[0]+'.png'
+        self.savename = os.path.basename(self.filename).rsplit('.', 1)[0]+'.png'
 
         # Display the filename of the current image in the title bar
         self.parent.title(MYNAME+' ('+self.filename+')')
@@ -681,7 +667,7 @@ class Viewer(tk.Frame):
         """
         Change clipping based on cursor x position change, update live
         """
-        xmin, xmax, _, _ = plt.axis()
+        xmin, xmax = self.databounds
 
         # Convert shift to a value in pixel brightness
         if self.grabbed == 'white':
@@ -721,7 +707,8 @@ class Viewer(tk.Frame):
         """
         Re-render the histogram and the white/black clipping lines
         """
-        xmin, xmax, ymin, ymax = plt.axis()
+        ymin, ymax = 0, HISTOGRAM_HEIGHT
+        xmin, xmax = self.databounds
 
         hist_resized = self.hist_full.resize((self.main_image.winfo_width(),
                                               HISTOGRAM_HEIGHT), Image.NEAREST)
@@ -755,57 +742,34 @@ class Viewer(tk.Frame):
         """
         Plot a histogram of the image data with axes scaled to enhance features
         """
-        plt.clf()
-
         data = self.imagedata.ravel()[::100]
 
         # Clipping data makes the histogram look nice but the sliders useless, so just clip the histogram
         lower_bound, upper_bound = np.percentile(data, [0.01, 99.95])
 
+        self.databounds = lower_bound, upper_bound
+
         mask = (data > lower_bound) & (data < upper_bound)
         data = data[mask]
 
-        bins = np.arange(data.min(), data.max())
-        hist = np.bincount(data.astype(int))
+        # Rescale data
+        data -= data.min()
+        data = data / data.max()
+        data = data * self.parent.winfo_screenwidth()
 
-        hist = hist[int(bins.min())+1:]
-        hist = hist/hist.max()
+        histogram = np.bincount(data.astype(int))[:-1]
+        histogram = histogram / histogram.max() * HISTOGRAM_HEIGHT
 
-        plt.fill_between(bins, 0, hist, color='k')
-        plt.xlim(bins[0], bins[-1])
+        # Manual plotting
+        coords = np.arange(0, HISTOGRAM_HEIGHT)[::-1]
+        coords = np.repeat(coords[:, np.newaxis], self.parent.winfo_screenwidth(), axis=1)
 
-        plt.xlim(lower_bound, upper_bound)
-        plt.ylim(0, 1)
+        histogram = coords > histogram[np.newaxis, :]
 
-        plt.axis('off')
-        fig = plt.gcf()
-        fig.axes[0].get_xaxis().set_visible(False)
-        fig.axes[0].get_yaxis().set_visible(False)
-        fig.tight_layout(pad=0, h_pad=0, w_pad=0)
-        fig.patch.set_facecolor('white')
+        histogram = (histogram * 255).astype(np.uint8)
+        histogram = np.repeat(histogram[:, :, np.newaxis], 3, axis=2)
 
-        ax = plt.gca()
-        ax.set_frame_on(False)
-        ax.set_xticks([])
-        ax.set_yticks([])
-
-        width = self.parent.winfo_screenwidth()/100
-
-        # THIS 1.25 IS A HACK BECAUSE MATPLOTLIB CHANGES FIGURE SIZE WHEN PAD=0
-        fig = plt.gcf()
-        fig.set_size_inches(width*1.25, HISTOGRAM_HEIGHT/100*1.25)
-
-        fig.canvas.draw()
-
-        # Get the RGBA buffer from the figure
-        w, h = fig.canvas.get_width_height()
-        buf = np.fromstring(fig.canvas.tostring_rgb(), dtype=np.uint8)
-        buf.shape = (w, h, 3)
-
-        buf = np.roll(buf, 3, axis=2)
-
-        w, h, d = buf.shape
-        self.hist_full = Image.frombytes("RGB", (w, h), buf.tostring())
+        self.hist_full = Image.fromarray(histogram)
 
     def save_image(self, event):
         """
