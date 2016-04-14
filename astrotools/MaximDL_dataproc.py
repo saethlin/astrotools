@@ -31,7 +31,7 @@ from astropy.io import fits
 def abspath_in_dir(directory):
     '''Return a list of absolute file paths to all fits files in directory'''
     extensions = ['fit', 'fits']
-    if directory.startswith('/'):
+    if os.path.isabs(directory):
         root = directory
     else:
         root = os.path.join(os.getcwd(), directory)
@@ -54,8 +54,11 @@ def median_combine(filenames, bias=None, dark=None, flat=None, normalize=False, 
     '''
 
     imshape = fits.open(filenames[0])[hdu].data.shape
-    stack = np.empty((len(filenames),)+imshape)
-    
+    try:
+        stack = np.empty((len(filenames),)+imshape)
+    except MemoryError:
+        print('Too many files')
+
     for f,fname in enumerate(filenames):
         hdu = fits.open(fname)[hdu]
         image = hdu.data
