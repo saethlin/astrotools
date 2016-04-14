@@ -30,7 +30,7 @@ from PIL import Image
 from PIL import ImageTk
 from astropy.io import fits
 
-MYNAME = 'viewfits 0.9'
+MYNAME = 'viewfits 0.9.1'
 EXTENSIONS = ['fit', 'fits', 'FIT', 'FITS']
 THUMBSIZE = 200
 HEIGHT = 500
