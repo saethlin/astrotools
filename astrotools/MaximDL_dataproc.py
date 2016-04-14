@@ -14,35 +14,34 @@ to a directory it creates, in this example called data_directory_reduced.
 This script will NOT function properly if
 '''
 
-#Future imports
+# Future imports
 from __future__ import division,print_function
 
-#Standard library imports
+# Standard library imports
 import os
+from collections import defaultdict
+import argparse
 from datetime import datetime
 
-#Non-standard imports
+# Non-standard imports
 import numpy as np
 from astropy.io import fits
 
 
 def abspath_in_dir(directory):
     '''Return a list of absolute file paths to all fits files in directory'''
-    extensions = ['FIT','FITS','fit','fits']
+    extensions = ['fit', 'fits']
     if directory.startswith('/'):
         root = directory
     else:
-        root = os.getcwd()+'/'+directory
-    
-    if root[-1] != '/':
-        root = root+'/'
-    
+        root = os.path.join(os.getcwd(), directory)
+
     rel_files = next(os.walk(directory))[2]
 
-    return [root+f for f in rel_files if f.rsplit('.',1)[-1] in extensions]
+    return [os.path.join(root, f) for f in rel_files if f.rsplit('.',1)[-1].lower() in extensions]
 
 
-def median_combine(filenames,bias=None,dark=None,flat=None,normalize=False):
+def median_combine(filenames, bias=None, dark=None, flat=None, normalize=False, hdu=0):
     '''
     Use median to combine a set of fits files primaryHDU image data.
     
@@ -52,15 +51,13 @@ def median_combine(filenames,bias=None,dark=None,flat=None,normalize=False):
             This allows combining images of unequal exposure time.
     flat -- a numpy ndarray to divide each image by before combining
     normalize -- if true, divide each image by its exposure time
-    
     '''
-    filenames = np.array(filenames)
-    
-    imshape = fits.open(filenames[0])[0].data.shape
-    stack = np.empty((imshape+(len(filenames),)))
+
+    imshape = fits.open(filenames[0])[hdu].data.shape
+    stack = np.empty((len(filenames),)+imshape)
     
     for f,fname in enumerate(filenames):
-        hdu = fits.open(fname)[0]
+        hdu = fits.open(fname)[hdu]
         image = hdu.data
         if bias is not None:
             image -= bias
@@ -71,18 +68,18 @@ def median_combine(filenames,bias=None,dark=None,flat=None,normalize=False):
         if normalize:
             image /= hdu.header['EXPTIME']
         
-        stack[:,:,f] = image
+        stack[f] = image
     
-    return np.median(stack,2,overwrite_input=True)
+    return np.median(stack, axis=0, overwrite_input=True)
 
 
-def MaximDL_dataproc(directory):
+def MaximDL_dataproc(directory, hdu=0):
 
     filenames = abspath_in_dir(directory)
-    dark = []
-    bias = []
-    flats = dict()
-    science = dict()
+    dark_names = []
+    bias_names = []
+    flat_names = defaultdict([])
+    science_names = defaultdict([])
 
     for filename in filenames:
         head = fits.open(filename)[0].header
@@ -90,48 +87,53 @@ def MaximDL_dataproc(directory):
         imtype = head['IMAGETYP'].split()[0]
         
         if imtype == 'Bias':
-            bias.append(filename)
+            bias_names.append(filename)
         elif imtype == 'Dark':
-            dark.append(filename)
+            dark_names.append(filename)
         elif imtype == 'Flat':
             filt = head['FILTER']
-            if filt not in flats:
-                flats[filt] = []
-            flats[filt].append(filename)
+            flat_names[filt].append(filename)
         elif imtype == 'Light':
             filt = head['FILTER']
-            if filt not in science:
-                science[filt] = []
-            science[filt].append(filename)
+            science_names[filt].append(filename)
 
-    bias = median_combine(bias)
+    bias = median_combine(bias_names, hdu=hdu)
 
-    dark = median_combine(dark,bias=bias,normalize=True)
+    dark = median_combine(dark_names, bias=bias, normalize=True, hdu=hdu)
 
-    for filt in flats:
-        flats[filt] = median_combine(flats[filt],bias=bias,dark=dark,normalize=True).clip(1)
-        flats[filt] /= np.median(flats[filt])
+    flats = dict()
+    for filt in flat_names:
+        flats[filt] = median_combine(flats[filt], bias=bias, dark=dark, normalize=True, hdu=hdu).clip(1)
+        flats[filt] /= np.median(flats[filt], hdu=hdu)
 
-    for filt in science:
-        for i in range(len(science[filt])):
-            hdu = fits.open(science[filt][i])[0]
-            image = hdu.data
+    for filt in science_names:
+        for science_name in science_names[filt]:
+            image_hdu = fits.open(science_name)[0]
+            image = image_hdu.data
             
             image -= bias
             image -= dark*hdu.header['EXPTIME']
             image /= flats[filt]
-            
-            name = science[filt][i].rsplit('/',1)[-1]
-            name = name.rsplit('.',1)[0]
+
+            new_name = os.path.basename(science_name)
+            new_name = new_name.rsplit('.',1)[0]
             
             head = hdu.header
-            head.append(('PROCESSD',str(datetime.now()),'date+time processed'))
+            head.append(('PROCESSD', str(datetime.now()), 'date+time processed'))
             
-            hdu = fits.PrimaryHDU(data=image,header=head)
+            hdu = fits.PrimaryHDU(data=image, header=head)
             hdu.add_checksum()
             
             hdulist = fits.HDUList(hdus=[hdu])
 
             if not os.path.isdir('processed'):
                 os.mkdir('processed')
-            hdulist.writeto('processed/'+name+'_proc.fits')
+            hdulist.writeto(os.path.join('processed', new_name+'_proce.fits'))
+
+if __name__ == '__main__':
+    parser = argparse.ArgumentParser()
+    parser.add_argument('input_directory', help='relative or absolute path to directory of all the data to process')
+    parser.add_argument('output_directory', help='relative or absolute path to a directory to place all processed data. Will be created if needed.')
+    args = parser.parse_args()
+
+    MaximDL_dataproc(args.input_directory, args.output_directory)

@@ -7,6 +7,7 @@ stop-gap and submit an issue. Controls ought to be obvious, help me make them.
 This is a program for looking at images, not for doing analysis.
 
 TODO:
+Render the dirlist if launched without a file
 There should be a better way to center images on loading
 Fix initial setup when loaded with no file
 Rescale button?
@@ -453,9 +454,10 @@ class Viewer(tk.Frame):
         """
         Read an image and make sure the display and interface are initalized
         """
-        start = time.time()
         if not os.path.isabs(filename):
             self.filename = os.path.join(os.getcwd(), filename)
+        else:
+            self.filename = filename
 
         # Set backgrounds to the same gray as the default frame background
         self.main_image.config(bg='#f4f4f4')
@@ -468,8 +470,10 @@ class Viewer(tk.Frame):
                 return
         except IOError:
             pass
-        
+
         self.imagedata = temp_data
+        self.imagedata = fits.open(self.filename)[0].data
+
         self.black_level = np.percentile(self.imagedata, 10.)
         self.white_level = np.percentile(self.imagedata, 99.9)
         self.zoom = 1.
@@ -500,7 +504,6 @@ class Viewer(tk.Frame):
             self.main_image.image = self.main_image.create_image(0, 0,
                                                                  image=None,
                                                                  anchor='nw')
-
         self.clip_image()
         self.redraw_image()
         self.redraw_minimap()
@@ -670,7 +673,6 @@ class Viewer(tk.Frame):
             self.grabbed = 'black'
         else:
             self.grabbed = None
-            print('nothing grabbed')
 
     def move_slider(self, event):
         """
@@ -716,8 +718,6 @@ class Viewer(tk.Frame):
         """
         Re-render the histogram and the white/black clipping lines
         """
-        total = datetime.now()
-        start = datetime.now()
         xmin, xmax, ymin, ymax = plt.axis()
 
         hist_resized = self.hist_full.resize((self.main_image.winfo_width(),
@@ -747,15 +747,14 @@ class Viewer(tk.Frame):
                                    fill='blue', tag='bline')
         self.histogram.create_line(self.white_x, 0, self.white_x, 50,
                                    fill='blue', tag='wline')
-    @profile
+
     def make_histogram_fig(self):
         """
         Plot a histogram of the image data with axes scaled to enhance features
         """
-        start = time.time()
         plt.clf()
 
-        data = self.imagedata.ravel().copy()
+        data = self.imagedata.ravel()[::100]
 
         # Clipping data makes the histogram look nice but the sliders useless
         low_index = int(data.size*0.0001)
@@ -808,8 +807,6 @@ class Viewer(tk.Frame):
 
         w, h, d = buf.shape
         self.hist_full = Image.frombytes("RGB", (w, h), buf.tostring())
-        print(time.time()-start)
-        exit()
 
     def save_image(self, event):
         """
