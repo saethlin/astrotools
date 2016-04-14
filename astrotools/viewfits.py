@@ -179,10 +179,12 @@ class Viewer(tk.Frame):
 
         self.bind_all('<Control-s>', self.save_image)
 
-        self.main_image.bind('<Button-4>', self.mousewheelup_linux)
-        self.mini_label.bind('<Button-4>', self.mousewheelup_linux)
-        self.main_image.bind('<Button-5>', self.mousewheeldown_linux)
-        self.mini_label.bind('<Button-5>', self.mousewheeldown_linux)
+        self.bind_all('<MouseWheel>', self.mousewheel_windows)
+
+        #self.bind_all('<Button-4>', self.mousewheelup_linux)
+        #self.bind_all('<Button-4>', self.mousewheelup_linux)
+        #self.bind_all('<Button-5>', self.mousewheeldown_linux)
+        #self.bind_all('<Button-5>', self.mousewheeldown_linux)
 
         self.mini_label.bind('<Button-1>', self.click_thumbnail)
         self.mini_label.bind('<B1-Motion>', self.click_thumbnail)
@@ -254,6 +256,7 @@ class Viewer(tk.Frame):
         """
         Zoom in, if possible
         """
+        print('test')
         if self.zoom < 16:
             if self.fitted:
                 self.fitted = False
@@ -269,6 +272,7 @@ class Viewer(tk.Frame):
         """
         Zoom out, if possible
         """
+        print('test')
         if self.zoom > 1/16:
             if self.fitted:
                 self.fitted = False
@@ -465,14 +469,13 @@ class Viewer(tk.Frame):
 
         # Load image data and set defaults
         try:
-            temp_data = fits.open(self.filename)[1].data
+            temp_data = fits.open(self.filename)[0].data
             if temp_data.ndim != 2:
                 return
         except IOError:
             pass
 
         self.imagedata = temp_data
-        self.imagedata = fits.open(self.filename)[0].data
 
         self.black_level = np.percentile(self.imagedata, 10.)
         self.white_level = np.percentile(self.imagedata, 99.9)
@@ -756,12 +759,7 @@ class Viewer(tk.Frame):
 
         data = self.imagedata.ravel()[::100]
 
-        # Clipping data makes the histogram look nice but the sliders useless
-        low_index = int(data.size*0.0001)
-        lower_bound = np.partition(data, low_index)[low_index]
-        upper_index = int(data.size*0.9995)
-        upper_bound = np.partition(data, upper_index)[upper_index]
-
+        # Clipping data makes the histogram look nice but the sliders useless, so just clip the histogram
         lower_bound, upper_bound = np.percentile(data, [0.01, 99.95])
 
         mask = (data > lower_bound) & (data < upper_bound)
@@ -771,6 +769,7 @@ class Viewer(tk.Frame):
         hist = np.bincount(data.astype(int))
 
         hist = hist[int(bins.min())+1:]
+        hist = hist/hist.max()
 
         plt.fill_between(bins, 0, hist, color='k')
         plt.xlim(bins[0], bins[-1])
