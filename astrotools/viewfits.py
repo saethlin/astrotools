@@ -7,7 +7,8 @@ stop-gap and submit an issue. Controls ought to be obvious, help me make them.
 This is a program for looking at images, not for doing analysis.
 
 TODO:
-Add automatic dependency installation?
+Support multiple HDUs
+Prevent image value display from jumping around
 Investigate source of pointy histogram
 Async histogram?
 Sliders and lines don't quite line up with edges of the plot
@@ -26,10 +27,20 @@ except ImportError:
     import Tkinter as tk
     import tkFileDialog as filedialog
 
-import numpy as np
-from PIL import Image
-from PIL import ImageTk
-from astropy.io import fits
+try:
+    import numpy as np
+    from PIL import Image
+    from PIL import ImageTk
+    from astropy.io import fits
+except ImportError:
+    print("It looks like you are missing Python packages that this relies on. I'm going to try to install them.")
+    import os
+    try:
+        os.system('easy_install pip')
+        os.system('pip install numpy Pillow astropy')
+    except Exception as e:
+        print("Something went wrong while trying to install dependencies. If you want to run this you'll have to figure out how to install them. You will need numpy, Pillow, and AstroPy. These are best installed with pip. If you got a permission error, try the command: sudo pip install numpy Pillow Astropy")
+
 
 MYNAME = 'viewfits 0.9.1'
 EXTENSIONS = ['fit', 'fits', 'FIT', 'FITS']
@@ -198,8 +209,7 @@ class Viewer(tk.Frame):
 
         if y < self.imagedata.shape[0] and x < self.imagedata.shape[1]:
             self.cursor_position.configure(text='Cursor: '+str(y)+', '+str(x))
-            self.cursor_value.configure(text='Val: ' +
-                                        str(round(self.imagedata[y, x], 1)))
+            self.cursor_value.configure(text='Val: '+str(round(self.imagedata[y, x], 1)))
 
     # This needs a rework to accomodate full name typing
     def move_to_key(self, event):
