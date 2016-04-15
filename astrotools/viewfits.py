@@ -9,6 +9,7 @@ This is a program for looking at images, not for doing analysis.
 TODO:
 Add automatic dependency installation?
 Investigate source of pointy histogram
+Async histogram?
 Sliders and lines don't quite line up with edges of the plot
 Clean
 """
@@ -460,7 +461,7 @@ class Viewer(tk.Frame):
         self.mini_label.config(bg='#f4f4f4')
 
         # Load image data and set defaults
-        temp_data = fits.open(self.filename)[0].data
+        temp_data = fits.open(self.filename)[0].data.astype(np.float64)
         if temp_data is None or temp_data.ndim != 2:
             raise IOError('Invalid fits file')
 
@@ -489,12 +490,8 @@ class Viewer(tk.Frame):
 
         # Configure the image display frame and canvases
         if self.histogram.image is None:
-            self.histogram.image = self.histogram.create_image(0, 0,
-                                                               image=None,
-                                                               anchor='nw')
-            self.main_image.image = self.main_image.create_image(0, 0,
-                                                                 image=None,
-                                                                 anchor='nw')
+            self.histogram.image = self.histogram.create_image(0, 0, image=None, anchor='nw')
+            self.main_image.image = self.main_image.create_image(0, 0, image=None, anchor='nw')
 
         self.xpos = (self.imagedata.shape[1]-self.w)//2
         self.ypos = (self.imagedata.shape[0]-self.h)//2
@@ -575,9 +572,8 @@ class Viewer(tk.Frame):
         self.clipped = self.imagedata.clip(self.black_level, self.white_level)
         self.clipped -= self.black_level
 
-        nfactor = 255/(self.white_level-self.black_level)
-        self.clipped *= nfactor
-        self.clipped = self.clipped.astype(np.uint8)
+        self.clipped *= 255/(self.white_level-self.black_level)
+        self.clipped = self.clipped.astype(np.uint8, copy=True)
 
         # Rebuild the data used to draw the minimap
         mini_zoom = min(THUMBSIZE/self.clipped.shape[0],
@@ -693,7 +689,6 @@ class Viewer(tk.Frame):
         """
         Re-render the histogram and the white/black clipping lines
         """
-        ymin, ymax = 0, HISTOGRAM_HEIGHT
         xmin, xmax = self.databounds
 
         hist_resized = self.hist_full.resize((self.main_image.winfo_width(),
@@ -731,7 +726,7 @@ class Viewer(tk.Frame):
         data = self.imagedata.ravel()
 
         # Clipping data makes the histogram look nice but the sliders useless, so just clip the histogram
-        lower_bound, upper_bound = np.percentile(data, [0.01, 99.95])
+        lower_bound, upper_bound = np.percentile(data[::100], [0.01, 99.95])
 
         self.databounds = lower_bound, upper_bound
 
@@ -740,8 +735,8 @@ class Viewer(tk.Frame):
 
         # Rescale data
         data -= data.min()
-        data = data / data.max()
-        data = data * self.parent.winfo_screenwidth()
+        data /= data.max()
+        data *= self.parent.winfo_screenwidth()
 
         histogram = np.bincount(data.astype(int))[:-1]
         histogram = histogram / histogram.max() * HISTOGRAM_HEIGHT
