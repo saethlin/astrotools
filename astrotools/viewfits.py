@@ -7,19 +7,21 @@ stop-gap and submit an issue. Controls ought to be obvious, help me make them.
 This is a program for looking at images, not for doing analysis.
 
 TODO:
-Support multiple HDUs
+Doesn't quite display correct pixel's value
+HDU dropdown menu
 Prevent image value display from jumping around
 Investigate source of pointy histogram
-Async histogram?
 Sliders and lines don't quite line up with edges of the plot
-Clean
 """
 from __future__ import division, print_function
 
 import os
+import sys
 import argparse
 import bisect
+import re
 
+import tkFont
 try:
     import tkinter as tk
     from tkinter import filedialog
@@ -29,17 +31,19 @@ except ImportError:
 
 try:
     import numpy as np
-    from PIL import Image
-    from PIL import ImageTk
+    from PIL import Image, ImageTk
     from astropy.io import fits
 except ImportError:
     print("It looks like you are missing Python packages that this relies on. I'm going to try to install them.")
-    import os
     try:
         os.system('easy_install pip')
         os.system('pip install numpy Pillow astropy')
     except Exception as e:
-        print("Something went wrong while trying to install dependencies. If you want to run this you'll have to figure out how to install them. You will need numpy, Pillow, and AstroPy. These are best installed with pip. If you got a permission error, try the command: sudo pip install numpy Pillow Astropy")
+        print("""Something went wrong while trying to install dependencies.
+                 If you want to run this you'll have to figure out how to install them.
+                 You will need numpy, Pillow, and astropy. These are best installed with pip.
+                 If you got a permission error, try the command: sudo pip install numpy Pillow Astropy""")
+        sys.exit(1)
 
 
 MYNAME = 'viewfits 0.9.1'
@@ -113,8 +117,13 @@ class Viewer(tk.Frame):
                                   activestyle='none', borderwidth=0,
                                   highlightthickness=0,
                                   yscrollcommand=self.scrollbar.set)
-        self.dirlist.pack(side=tk.LEFT, fill=tk.BOTH, expand=1)
+        self.dirlist.pack(side=tk.TOP, fill=tk.BOTH, expand=1)
         self.scrollbar.config(command=self.dirlist.yview)
+
+        # Add a button to display the image header
+        self.headerbutton = tk.Button(self.sideframe, text='Display header', command=self.show_header)
+        self.headerbutton.pack(side=tk.BOTTOM, fill=tk.X)
+
 
         self.bind_all('<Control-o>', self.open_dialog)
 
@@ -152,6 +161,8 @@ class Viewer(tk.Frame):
         self.black_level = 0
         self.white_level = 0
         self.help_window = None
+        self.header_window = None
+        self.header_text = None
         self.h, self.w = 0, 0
         self.updating = False
 
@@ -471,11 +482,14 @@ class Viewer(tk.Frame):
         self.mini_label.config(bg='#f4f4f4')
 
         # Load image data and set defaults
-        temp_data = fits.open(self.filename)[0].data.astype(np.float64)
+        temp_hdu = fits.open(self.filename)[0]
+        temp_data = temp_hdu.data
         if temp_data is None or temp_data.ndim != 2:
             raise IOError('Invalid fits file')
 
-        self.imagedata = temp_data
+        self.header_text = str(temp_hdu.header)
+        self.header_text = re.sub("(.{80})", "\\1\n", self.header_text, 0, re.DOTALL).strip()
+        self.imagedata = temp_data.astype(float)
 
         self.black_level = np.percentile(self.imagedata.ravel()[::100], 10.)
         self.white_level = np.percentile(self.imagedata.ravel()[::100], 99.9)
@@ -775,6 +789,23 @@ class Viewer(tk.Frame):
             self.save_dir = os.path.dirname(path)
 
             self.main_image.photo.save(path)
+
+    def show_header(self, *args):
+        if (self.header_window is None) and (self.header_text is not None):
+            self.header_window = tk.Toplevel()
+            self.header_window.title(os.path.basename(self.filename) + ' header')
+            self.header_window.resizable(0, 0)
+
+            self.header_message = tk.Message(self.header_window, text=self.header_text, font=tkFont.Font(family='Courier', size=10))
+            self.header_message.pack()
+
+            self.parent.bind_all('<Escape>', self.close_header)
+            self.header_window.protocol("WM_DELETE_WINDOW", self.close_header)
+
+    def close_header(self, *args):
+        self.parent.bind_all('<Escape>', quit)
+        self.header_window.destroy()
+        self.header_window = None
 
     def close_help(self, *args):
         """
