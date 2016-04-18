@@ -484,8 +484,10 @@ class Viewer(tk.Frame):
         if temp_data is None or temp_data.ndim != 2:
             raise IOError('Invalid fits file')
 
-        self.header_text = str(temp_hdu.header)
+        self.header_text = str(temp_hdu.header).strip()
+        print(self.header_text)
         self.header_text = re.sub("(.{80})", "\\1\n", self.header_text, 0, re.DOTALL).strip()
+        print(self.header_text)
         self.imagedata = temp_data.astype(float)
 
         self.black_level = np.percentile(self.imagedata.ravel()[::100], 10.)
@@ -760,6 +762,12 @@ class Viewer(tk.Frame):
         data *= self.parent.winfo_screenwidth()
 
         histogram = np.bincount(data.astype(int))[:-1]
+
+        left = np.roll(histogram, -1)
+        right = np.roll(histogram, 1)
+        peak_mask = (histogram > left) & (histogram > right) & (left > 0) & (right > 0)
+        histogram[peak_mask] = ((left + right)/2)[peak_mask]
+
         histogram = histogram / histogram.max() * HISTOGRAM_HEIGHT
 
         # Manual plotting
@@ -793,7 +801,7 @@ class Viewer(tk.Frame):
             self.header_window.title(os.path.basename(self.filename) + ' header')
             self.header_window.resizable(0, 0)
 
-            self.header_message = tk.Message(self.header_window, text=self.header_text, font=tkFont.Font(family='Courier', size=10))
+            self.header_message = tk.Message(self.header_window, text=self.header_text, font=tkFont.Font(family='Courier', size=12))
             self.header_message.pack()
 
             self.parent.bind_all('<Escape>', self.close_header)
