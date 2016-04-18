@@ -20,6 +20,7 @@ import sys
 import argparse
 import bisect
 import re
+import subprocess
 
 import tkFont
 try:
@@ -36,13 +37,9 @@ try:
 except ImportError:
     print("It looks like you are missing Python packages that this relies on. I'm going to try to install them.")
     try:
-        os.system('easy_install pip')
-        os.system('pip install numpy Pillow astropy')
+        subprocess.call('python -m pip install numpy Pillow astropy --user')
     except Exception as e:
-        print("""Something went wrong while trying to install dependencies.
-                 If you want to run this you'll have to figure out how to install them.
-                 You will need numpy, Pillow, and astropy. These are best installed with pip.
-                 If you got a permission error, try the command: sudo pip install numpy Pillow Astropy""")
+        print("Something went wrong while trying to install dependencies, probably because you don't have pip installed.")
         sys.exit(1)
 
 
