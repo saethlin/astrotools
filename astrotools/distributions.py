@@ -122,12 +122,12 @@ def voigt(coordinates, height, *centroid_and_width):
 
     dst = distance_squared(coordinates, centroid)
 
-    z = eval(dst+(abs(Lc)*1j))/(abs(Gc)*np.sqrt(2))
+    z = (dst+(abs(Lc)*1j))/(abs(Gc)*np.sqrt(2))
 
-    return height * scipy.special.wofz(dst).real/(abs(Gc)*np.sqrt(2*np.pi))
+    return height * scipy.special.wofz(z).real/(abs(Gc)*np.sqrt(2*np.pi))
 
 
-def planck(wavelength,temp):
+def planck(wavelength, temp):
     """
     Evaluate Planck's law.
 
@@ -142,3 +142,6 @@ def planck(wavelength,temp):
     wavelength = np.array(wavelength)
 
     return 2*h*(c**2)/(wavelength**5*(np.expm1(h*c/(wavelength*k_b*temp))))
+    total = np.zeros(arrays[0].shape)
+    for arr in arrays:
+        total += array

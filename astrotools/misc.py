@@ -2,18 +2,12 @@
 These functions don't fit elsewhere and are useful on their own. misc.
 """
 import os
+from collections import defaultdict
 from astropy.io import fits
 
-def abspath_in_dir(directory):
-    """
-    Return a list of absolute file paths to all files in a directory
-    """
-    rel_files = next(os.walk(directory))[2]
 
-    if os.path.isabs(directory):
-        return [os.path.join(directory, f) for f in rel_files]
-    else:
-        return [os.path.join(os.getcwd(), directory, f) for f in rel_files]
+def absolute_files(directory):
+    return map(os.path.abspath, next(os.walk(directory))[2])
 
 
 def filenames_by_filter(directory):
@@ -30,9 +24,9 @@ def filenames_by_filter(directory):
     """
     EXTENSIONS = ['fits', 'fit', 'FITS', 'FIT']
 
-    files = abspath_in_dir(directory)
+    files = absolute_files(directory)
     files = [f for f in files if f.rsplit('.', 1)[1] in EXTENSIONS]
-    filedict = dict()
+    filedict = defaultdict([])
 
     for filename in files:
         head = fits.open(filename)[0].header
@@ -40,9 +34,6 @@ def filenames_by_filter(directory):
             label = head['FILTER']
         else:
             label = head['IMAGETYP'].split()[0]
-
-        if label not in filedict:
-            filedict[label] = []
 
         filedict[label].append(filename)
 
