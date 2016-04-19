@@ -50,9 +50,11 @@ def bin_sum(data, nbin):
     return bin_centers, binned
 
 
-def csmooth(x, y, interval):
-    n_points = np.zeros(y.size)
-    sums = np.zeros(y.size)
+def csmooth(x, y, interval, eval=None):
+    if eval is None:
+        eval = x
+    n_points = np.zeros(eval.size)
+    sums = np.zeros(eval.size)
 
     for i in range(y.size):
         mask = (x > x[i]) & (x < x[i]+interval)
@@ -60,9 +62,12 @@ def csmooth(x, y, interval):
         if np.sum(mask) > 4:
             p = np.polyfit(x[mask], y[mask], 3)
 
-            sums[mask] += np.polyval(p, x[mask])
-            n_points[mask] += 1
+            eval_mask = (eval > x[i]) & (eval < x[i]+interval)
 
+            sums[eval_mask] += np.polyval(p, eval[eval_mask])
+            n_points[eval_mask] += 1
+
+    n_points[n_points == 0] = 1
     return sums/n_points
 
 
