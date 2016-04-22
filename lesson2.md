@@ -28,7 +28,7 @@ or
 if 5*6 < 30:
     print('I broke math')
 ```
-While you need to start with an `if`, other statements can follow it. For example:
+The `if` is the only required part of the full syntax, which includes an optional `else`:
 ```
 if 'test' in some_values:
     print('found it')
