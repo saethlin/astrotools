@@ -10,11 +10,9 @@ import os
 import time
 import ctypes
 import Tkinter as tk
-from datetime import datetime
 
 import numpy as np
 import ephem
-from scipy.misc import imsave
 
 # Image save path
 save_path = os.path.join(os.getcwd(), 'test.png')
@@ -37,29 +35,21 @@ screen_radius = np.sqrt(screen_height**2 + screen_width**2)/2
 image = np.zeros((screen_height+size//2*2, screen_width+size//2*2))
 
 # Load star locations
-stars = set()
-"""
+stars = []
 with open('simbad.tsv') as star_data:
     for line in star_data:
         if line[0].isdigit() and '~' not in line:
             _, coordinates, b_mag, v_mag = line.split('\t')
             groups = coordinates.split()
             right_ascension, declination = ':'.join(groups[:3]), ':'.join(groups[3:])
-            stars.add(ephem.readdb('star,f|S,{},{},{}'.format(right_ascension, declination, v_mag)))
-"""
-
-with open('orion.txt') as star_data:
-    for line in star_data:
-        right_ascension, declination, mag = line.split()
-        stars.add(ephem.readdb('star,f|S,{},{},{}'.format(right_ascension, declination, mag)))
+            stars.append(ephem.readdb('star,f|S,{},{},{}'.format(right_ascension, declination, v_mag)))
 
 altitude = np.empty(len(stars))
 azimuth = np.empty(len(stars))
 v_mag = np.empty(len(stars))
 
 while True:
-    start = datetime.now()
-    # Set up observer so get correct time
+    # Set up observer, should add some user entry of location
     location = ephem.Observer()
     location.lat = '29.6652'
     location.lon = '-82.325'
@@ -95,13 +85,11 @@ while True:
         star_image *= part_v_mag[i]/np.sum(star_image)
         image[y-size//2:y+size//2+1, x-size//2:x+size//2+1] += star_image
 
-    # Rescale the image
+    # Rescale the image, using log10 because that's close to human eye sensetivity
     image = np.log10(3*image+1)
 
-    imsave('test.png', image[size//2:-size//2,size//2:-size//2])
-
+    # Set wallpaper, windows-only
     SPI_SETDESKWALLPAPER = 20
     ctypes.windll.user32.SystemParametersInfoA(SPI_SETDESKWALLPAPER, 0, save_path, 2)
-    print(datetime.now()-start)
 
     time.sleep(2)
