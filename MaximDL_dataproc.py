@@ -1,21 +1,18 @@
 #!/usr/bin/env python
-'''
+""""
 MaximDL_dataproc makes astronomical data reduction easy, provided it is all
 collected with MaximDL and has correctly identified image types. MaximDL
 provides sufficient header information to identify all images based only on
-header information, so for this script all relevant data files should be
-placed in one directory. As an example, consdier the directory data_directory.
+header information, except maybe for flats. If a file has "flat" in the
+filename (not case-sensitive), it will be used as a flat in the appropriate
+filter.
 
-Command line usage -- >python MaximDL_dataproc.py data_directory
-
-This script will output all the reduced data it identifies as science images
-to a directory it creates, in this example called data_directory_reduced.
-
-This script will NOT function properly if
-'''
+For help on command line arguments:
+> python MaximDL_dataproc.py -h
+"""
 
 # Future imports
-from __future__ import division,print_function
+from __future__ import division, print_function
 
 # Standard library imports
 import os
@@ -31,36 +28,43 @@ from astropy.utils.exceptions import AstropyWarning
 warnings.simplefilter('ignore', category=AstropyWarning)
 
 
-def absolute_files(directory):
-    root = os.path.abspath(directory)
-    return [os.path.join(root, f) for f in next(os.walk(directory))[2]]
+def genfiles(path, file_extension='.fits'):
+    for entry in os.scandir(path):
+        if entry.is_file() and entry.name.endswith(file_extension):
+            yield entry.path
 
 
 def median_combine(filenames, bias=None, dark=None, flat=None, normalize=False, hdu_num=0):
-    '''
-    Use median to combine a set of fits files primaryHDU image data.
+    """median-combine a collection of fits images.
     
     Keyword arguments:
     bias -- a numpy ndarray to be subtracted from the final result
     dark -- a numpy ndarray multiplied by each image's EXPTIME and subtracted.
-            This allows combining images of unequal exposure time.
     flat -- a numpy ndarray to divide each image by before combining
-    normalize -- if true, divide each image by its exposure time
-    '''
+    normalize -- divide each image by its exposure time
+    """
+
     imshape = fits.open(filenames[0])[hdu_num].data.shape
     try:
         stack = np.empty((len(filenames),)+imshape)
     except MemoryError:
-        print('Too many files')
+        print('Too many files to combine')
+        if bias is None:
+            print('file type: bias')
+        elif dark is None:
+            print('file type: dark')
+        else:
+            print('file type: flat')
+        exit()
 
-    for f,fname in enumerate(filenames):
+    for f, fname in enumerate(filenames):
         hdu = fits.open(fname)[hdu_num]
         image = hdu.data.astype(float)
-        if bias is not None:
+        if bias:
             image -= bias
-        if dark is not None:
+        if dark:
             image -= hdu.header['EXPTIME']*dark
-        if flat is not None:
+        if flat:
             image /= flat
         if normalize:
             image /= hdu.header['EXPTIME']
@@ -70,14 +74,14 @@ def median_combine(filenames, bias=None, dark=None, flat=None, normalize=False, 
     return np.median(stack, axis=0, overwrite_input=True)
 
 
-def MaximDL_dataproc(input_directory, output_directory=None, hdu_num=0):
+def maximdl_dataproc(input_directory, output_directory=None, hdu_num=0):
 
     if output_directory is None:
         output_directory = os.path.join(os.path.dirname(input_directory), 'processed')
     if not os.path.isdir(output_directory):
         os.mkdir(output_directory)
 
-    filenames = absolute_files(input_directory)
+    filenames = genfiles(input_directory)
     dark_names = []
     bias_names = []
     flat_names = defaultdict(list)
@@ -90,7 +94,7 @@ def MaximDL_dataproc(input_directory, output_directory=None, hdu_num=0):
         
         if imtype == 'Bias':
             bias_names.append(filename)
-        elif imtype == 'Dark' and head['EXPTIME'] > 1:
+        elif imtype == 'Dark':
             dark_names.append(filename)
         elif imtype == 'Flat' or 'flat' in filename.lower():
             filt = head['FILTER']
@@ -117,9 +121,8 @@ def MaximDL_dataproc(input_directory, output_directory=None, hdu_num=0):
             image -= dark*input_hdu.header['EXPTIME']
             image /= flats[filt]
 
-            new_name = os.path.basename(science_name)
-            new_name = new_name.rsplit('.',1)[0]
-            
+            output_path = os.path.join(output_directory, os.path.basename(science_name)).replace('.fits', '_proc.fits')
+
             head = input_hdu.header
             head.append(('PROCESSD', str(datetime.now()), 'date+time processed'))
             
@@ -128,12 +131,14 @@ def MaximDL_dataproc(input_directory, output_directory=None, hdu_num=0):
             
             hdulist = fits.HDUList(hdus=[output_hdu])
 
-            hdulist.writeto(os.path.join(output_directory, new_name+'_proc.fits'), clobber=True)
+            hdulist.writeto(output_path, clobber=True)
+
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('input_directory', help='relative or absolute path to directory of all the data to process')
-    #parser.add_argument('output_directory', help='relative or absolute path to a directory to place all processed data. Will be created if needed.')
+    parser.add_argument('-out', '--output_directory', default=None, help='relative or absolute path to a directory to place all processed data. Will be created if needed. If none is given, an output directory is created next to the input directory.')
+    parser.add_argument('-hdu', '--image_hdu', type=int, default=0, help='0-based index of the image HDU to process')
     args = parser.parse_args()
 
-    MaximDL_dataproc(args.input_directory)
+    maximdl_dataproc(args.input_directory, args.output_directory, args.image_hdu)
