@@ -96,7 +96,7 @@ def maximdl_dataproc(input_directory, output_directory=None, hdu_num=0):
             bias_names.append(filename)
         elif imtype == 'Dark':
             dark_names.append(filename)
-        elif imtype == 'Flat' or 'flat' in filename.lower():
+        elif (imtype == 'Flat') or ('flat' in filename.lower()):
             filt = head['FILTER']
             flat_names[filt].append(filename)
         elif imtype == 'Light':

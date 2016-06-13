@@ -22,27 +22,23 @@ import bisect
 import re
 import subprocess
 
-import tkFont
 try:
     import tkinter as tk
     from tkinter import filedialog
+    import tkFont
 except ImportError:
-    import Tkinter as tk
-    import tkFileDialog as filedialog
+    import tkinter as tk
+    from tkinter import filedialog as tkFileDialog
+    from tkinter import font as tkFont
 
 try:
     import numpy as np
     from PIL import Image, ImageTk
     from astropy.io import fits
-except ImportError:
     print("It looks like you are missing Python packages that this relies on. I'm going to try to install them.")
-    try:
-        subprocess.call('python -m pip install numpy Pillow astropy --user')
-    except Exception as e:
-        print("Something went wrong while trying to install dependencies, probably because you don't have pip installed.")
-        sys.exit(1)
 
 
+except ImportError:
 MYNAME = 'viewfits 0.9.1'
 EXTENSIONS = ['fit', 'fits', 'FIT', 'FITS']
 THUMBSIZE = 200
@@ -195,6 +191,7 @@ class Viewer(tk.Frame):
         self.bind_all('<Button-4>', self.mousewheelup_linux)
         self.bind_all('<Button-5>', self.mousewheeldown_linux)
         self.bind_all('<Button-5>', self.mousewheeldown_linux)
+        self.bind_all('=', self.mousewheelup_linux)
 
         self.mini_label.bind('<Button-1>', self.click_thumbnail)
         self.mini_label.bind('<B1-Motion>', self.click_thumbnail)
