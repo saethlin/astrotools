@@ -4,12 +4,11 @@ Set size and image padding based on psf size
 Add color based on B-V or temperature
 Try adding constellation lines
 """
-from __future__ import division, print_function
 
 import os
 import time
 import ctypes
-import Tkinter as tk
+import tkinter as tk
 
 import numpy as np
 import ephem

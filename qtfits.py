@@ -1,7 +1,10 @@
 import sys
-import numpy as np
+from pathlib import Path
 from PyQt5.QtWidgets import *
 from PyQt5.QtGui import QImage, QPixmap
+
+import numpy as np
+from astropy.io import fits
 
 
 class Viewer(QWidget):
@@ -9,35 +12,37 @@ class Viewer(QWidget):
     def __init__(self):
         super(Viewer, self).__init__()
 
+        self.hbox = QHBoxLayout(self)
+        self.lbl = QLabel(self)
+        self.hbox.addWidget(self.lbl)
+        self.setLayout(self.hbox)
+
+        self.data = None
         self.setWindowTitle('Tester')
-        self.resize(200, 200)
-        self.center()
+        self.open('test.fits')
+
+
+    @profile
+    def open(self, path, hdu=0):
+        path = Path(path)
+        with path.open('rb') as input_file:
+            self.data = fits.open(input_file)[hdu].data
+
+        self.clipped = (self.data - np.median(self.data)).clip(0, 1000)
+        self.scaled = (self.clipped * 255/self.clipped.max()).astype(np.uint8)
+
         self.display()
 
-    def center(self):
-        qr = self.frameGeometry()
-        cp = QDesktopWidget().availableGeometry().center()
-        qr.moveCenter(cp)
-        self.move(qr.topLeft())
-
     def display(self):
-        #test = (np.random.rand(100,100,3)*255).astype(np.uint8)
-        test = np.zeros((200, 200, 3))
-        test[...,0] = 1
-        test = (test*255).astype(np.uint8)
-        print(test)
-        height, width, channel = test.shape
+        stack = np.dstack((self.scaled,)*3)
+
+        height, width, channel = stack.shape
         linebytes = 3*width
-        self.image = QImage(test.data, width, height, linebytes, QImage.Format_RGB888)
-        self.pixmap = QPixmap(self.image)
+        image = QImage(stack.data, width, height, linebytes, QImage.Format_RGB888)
+        pixmap = QPixmap(image)
 
-        hbox = QHBoxLayout(self)
+        self.lbl.setPixmap(pixmap)
 
-        lbl = QLabel(self)
-        lbl.setPixmap(self.pixmap)
-
-        hbox.addWidget(lbl)
-        self.setLayout(hbox)
 
 
 

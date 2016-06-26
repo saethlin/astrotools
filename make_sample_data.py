@@ -2,7 +2,6 @@
 '''
 We need some data for vectorize_starfield to work on, better make some
 '''
-from __future__ import division, print_function
 import sys
 
 import numpy as np

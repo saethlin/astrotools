@@ -13,32 +13,16 @@ Prevent image value display from jumping around
 Investigate source of pointy histogram
 Sliders and lines don't quite line up with edges of the plot
 """
-from __future__ import division, print_function
-
 import os
-import sys
 import argparse
 import bisect
 import re
-import subprocess
 
-try:
-    import tkinter as tk
-    from tkinter import filedialog
-    import tkFont
-except ImportError:
-    import tkinter as tk
-    from tkinter import filedialog as tkFileDialog
-    from tkinter import font as tkFont
+import tkinter as tk
+from tkinter import filedialog
+from tkinter import font as tkFont
+import numpy as np
 
-try:
-    import numpy as np
-    from PIL import Image, ImageTk
-    from astropy.io import fits
-    print("It looks like you are missing Python packages that this relies on. I'm going to try to install them.")
-
-
-except ImportError:
 MYNAME = 'viewfits 0.9.1'
 EXTENSIONS = ['fit', 'fits', 'FIT', 'FITS']
 THUMBSIZE = 200

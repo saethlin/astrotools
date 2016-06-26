@@ -9,9 +9,6 @@ lorentzian -- n-dimensional symmetric Lorentzian distribution
 voigt -- n-dimensional symmetric Voigt distribution
 planck -- planck function in SI units
 """
-
-from __future__ import division
-
 import numpy as np
 import scipy.special
 

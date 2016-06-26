@@ -10,7 +10,6 @@ imshift -- An wrapper for scipy.ndimage.interpolation.shift for curve_fit
 align -- Aligns an image to a base image
 """
 
-from __future__ import division, print_function
 import sys
 import os
 from datetime import datetime

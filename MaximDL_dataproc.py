@@ -11,9 +11,6 @@ For help on command line arguments:
 > python MaximDL_dataproc.py -h
 """
 
-# Future imports
-from __future__ import division, print_function
-
 # Standard library imports
 import os
 from collections import defaultdict
