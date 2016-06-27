@@ -3,6 +3,8 @@
   <component name="ProjectModuleManager">
     <modules>
       <module fileurl="file://$PROJECT_DIR$/.idea/astrotools.iml" filepath="$PROJECT_DIR$/.idea/astrotools.iml" />
+      <module fileurl="file://$USER_HOME$/python-astronomy-workshops/.idea/python-astronomy-workshops.iml" filepath="$USER_HOME$/python-astronomy-workshops/.idea/python-astronomy-workshops.iml" />
+      <module fileurl="file://$USER_HOME$/research/.idea/research.iml" filepath="$USER_HOME$/research/.idea/research.iml" />
     </modules>
   </component>
 </project>
