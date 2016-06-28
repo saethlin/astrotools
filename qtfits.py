@@ -22,6 +22,10 @@ class ImageDisplay(QLabel):
         self._white = image.max()
         self._zoom = 1
 
+        self.timer = QtCore.QTimer(self)
+        self.timer.setInterval(int(1/60*1000))
+        self.timer.setSingleShot(True)
+
     @property
     def image(self):
         return self._image
@@ -61,21 +65,28 @@ class ImageDisplay(QLabel):
         self.refresh()
 
     def refresh(self):
-        subsection = self.image[:self.height()//self.zoom, :self.width()//self.zoom]
-        clipped = (subsection - self.black).clip(0, self.white)
-        scaled = (clipped/clipped.max()*255).astype(np.uint8)
+        if self.timer.remainingTime() == -1:
+            subsection = self.image[:self.height()//self.zoom, :self.width()//self.zoom]
+            clipped = (subsection - self.black).clip(0, self.white)
+            scaled = (clipped/clipped.max()*255).astype(np.uint8)
 
-        zoomed = ndimage.zoom(scaled, self.zoom, order=0)
+            zoomed = ndimage.zoom(scaled, self.zoom, order=0)
 
-        stack = np.dstack((zoomed,)*3)
-        height, width, channel = stack.shape
-        linebytes = 3*width
-        image = QImage(stack.data, width, height, linebytes, QImage.Format_RGB888)
-        pixmap = QPixmap(image)
-        self.setPixmap(pixmap)
+            stack = np.dstack((zoomed,)*3)
+            height, width, channel = stack.shape
+            linebytes = 3*width
+            image = QImage(stack.data, width, height, linebytes, QImage.Format_RGB888)
+            pixmap = QPixmap(image)
+            self.setPixmap(pixmap)
 
+            try:
+                self.timer.disconnect()
+            except TypeError:
+                pass
+            self.timer.start()
 
-
+        else:
+            self.timer.timeout.connect(self.refresh)
 
 
 class Viewer(QWidget):
@@ -92,6 +103,8 @@ class Viewer(QWidget):
         self.resize(800, 500)
 
         self.open(Path('test.fits'))
+
+
 
     def open(self, path, hdu=0):
         with Path(path).open('rb') as input_file:
