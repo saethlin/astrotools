@@ -1,75 +1,79 @@
 """
-Overview:
-
-Change Viewer coordinates:
-
 """
 
 import sys
 from pathlib import Path
 from PyQt5.QtWidgets import *
 from PyQt5.QtGui import QImage, QPixmap
+from PyQt5 import QtCore
 
 import numpy as np
 from astropy.io import fits
-import scipy.ndimage
+from scipy import ndimage
 
 
-class FitsImage(object):
+class ImageDisplay(QLabel):
 
-    def __init__(self, path, hdu=0):
-        path = Path(path)
-        with path.open('rb') as input_file:
-            self.data = fits.open(input_file)[hdu].data.astype(np.float16)
+    def __init__(self, parent, image):
+        super(ImageDisplay, self).__init__()
 
-        self.scaled = None
-        self.clip_bounds = self.data.max(), self.data.min()
-
-    @property
-    def clip_bounds(self):
-        return self._clip_bounds
-
-    @clip_bounds.setter
-    def clip_bounds(self, bounds):
-        self._clip_bounds = bounds
-        clipped = np.clip(self.data, *self.clip_bounds)
-        self.scaled = (clipped * 255/clipped.max()).astype(np.uint8)
-
-
-class ImageDisplay(object):
-
-    def __init__(self, image):
-        self.image = image
-        self._view_coordinates = (0, 0)
-        self._zoom = 1.
+        self._image = image.astype(np.float16)
+        self._black = 0
+        self._white = image.max()
+        self._zoom = 1
 
     @property
-    def view_coordinates(self):
-        return self._view_coordinates
+    def image(self):
+        return self._image
 
-    @view_coordinates.setter
-    def view_coordinates(self, coordinates):
-        if coordinates != self._view_coordinates:
-            self._view_coordinates = coordinates
+    @image.setter
+    def image(self, new):
+        self._image = new
+        self._black = np.median(new)
+        self._white = 1000
+        self.refresh()
 
-            # Re-assign pixmap
-            stack = np.dstack((self.scaled,) * 3)
+    @property
+    def black(self):
+        return self._black
 
-            height, width, channel = stack.shape
-            linebytes = 3 * width
-            image = QImage(stack.data, width, height, linebytes, QImage.Format_RGB888)
-            pixmap = QPixmap(image)
+    @black.setter
+    def black(self, new):
+        self._black = new
+        self.refresh()
 
-            self.lbl.setPixmap(pixmap)
+    @property
+    def white(self):
+        return self._white
+
+    @white.setter
+    def white(self, new):
+        self._white = new
+        self.refresh()
 
     @property
     def zoom(self):
         return self._zoom
 
     @zoom.setter
-    def zoom(self, new_zoom):
-        if new_zoom != self._zoom:
-            self._zoom = new_zoom
+    def zoom(self, new):
+        self._zoom = new
+        self.refresh()
+
+    def refresh(self):
+        subsection = self.image[:self.height()//self.zoom, :self.width()//self.zoom]
+        clipped = (subsection - self.black).clip(0, self.white)
+        scaled = (clipped/clipped.max()*255).astype(np.uint8)
+
+        zoomed = ndimage.zoom(scaled, self.zoom, order=0)
+
+        stack = np.dstack((zoomed,)*3)
+        height, width, channel = stack.shape
+        linebytes = 3*width
+        image = QImage(stack.data, width, height, linebytes, QImage.Format_RGB888)
+        pixmap = QPixmap(image)
+        self.setPixmap(pixmap)
+
 
 
 
@@ -79,35 +83,35 @@ class Viewer(QWidget):
     def __init__(self):
         super(Viewer, self).__init__()
 
-        self.hbox = QHBoxLayout(self)
-        self.lbl = QLabel(self)
-        self.hbox.addWidget(self.lbl)
-        self.setLayout(self.hbox)
-
-        self.data = None
         self.setWindowTitle('Tester')
-        self.image = FitsImage(Path('test.fits'))
+
+        self.hbox = QHBoxLayout(self)
+        self.main = ImageDisplay(self, np.ones((500, 500)))
+        self.hbox.addWidget(self.main)
+        self.setLayout(self.hbox)
+        self.resize(800, 500)
+
+        self.open(Path('test.fits'))
 
     def open(self, path, hdu=0):
-        self.image = FitsImage(path, hdu)
-        self.refresh_main()
+        with Path(path).open('rb') as input_file:
+            image = fits.open(input_file)[hdu].data.astype(np.float16)
+        self.main.image = image
 
-    def refresh_main(self):
-        stack = np.dstack((self.scaled,)*3)
+    def keyPressEvent(self, event):
+        if event.key() == QtCore.Qt.Key_Escape:
+            self.close()
+        elif event.key() == QtCore.Qt.Key_Equal:
+            self.main.zoom *= 2
+        elif event.key() == QtCore.Qt.Key_Minus:
+            self.main.zoom /= 2
 
-        height, width, channel = stack.shape
-        linebytes = 3*width
-        image = QImage(stack.data, width, height, linebytes, QImage.Format_RGB888)
-        pixmap = QPixmap(image)
-
-        self.lbl.setPixmap(pixmap)
-
-
-
+    def resizeEvent(self, event):
+        self.main.refresh()
 
 
 if __name__ == '__main__':
     app = QApplication(sys.argv)
-    w = Viewer()
-    w.show()
+    window = Viewer()
+    window.show()
     app.exec_()
