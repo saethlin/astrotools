@@ -15,7 +15,8 @@ from scipy import ndimage
 class ImageDisplay(QLabel):
 
     def __init__(self, parent, image):
-        super(ImageDisplay, self).__init__()
+        super(ImageDisplay, self).__init__(parent)
+        #self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
 
         self._image = image.astype(np.float16)
         self._black = 0
@@ -25,6 +26,7 @@ class ImageDisplay(QLabel):
         self.timer = QtCore.QTimer(self)
         self.timer.setInterval(int(1/60*1000))
         self.timer.setSingleShot(True)
+        self.parent = parent
 
     @property
     def image(self):
@@ -35,7 +37,8 @@ class ImageDisplay(QLabel):
         self._image = new
         self._black = np.median(new)
         self._white = 1000
-        self.refresh()
+        self.sliced = self.image[:0,:0]
+        self.reslice()
 
     @property
     def black(self):
@@ -44,7 +47,7 @@ class ImageDisplay(QLabel):
     @black.setter
     def black(self, new):
         self._black = new
-        self.refresh()
+        self.reclip()
 
     @property
     def white(self):
@@ -53,7 +56,7 @@ class ImageDisplay(QLabel):
     @white.setter
     def white(self, new):
         self._white = new
-        self.refresh()
+        self.reclip()
 
     @property
     def zoom(self):
@@ -62,17 +65,29 @@ class ImageDisplay(QLabel):
     @zoom.setter
     def zoom(self, new):
         self._zoom = new
-        self.refresh()
+        self.rezoom()
 
-    def refresh(self):
+    def reslice(self):
+        self.sliced = self.image[:self.parent.height()//self.zoom, :self.parent.width()//self.zoom]
+        self.resize(*self.sliced.shape[::-1])
+        self.reclip()
+
+    def reclip(self):
+        self.clipped = (self.sliced - self.black).clip(0, self.white)
+        self.rescale()
+
+    def rescale(self):
+        self.scaled = (self.clipped/self.clipped.max()*255).astype(np.uint8)
+        self.rezoom()
+
+    def rezoom(self):
+        self.zoomed = ndimage.zoom(self.scaled, self.zoom, order=0)
+        self.renew_display()
+
+    def renew_display(self):
         if self.timer.remainingTime() == -1:
-            subsection = self.image[:self.height()//self.zoom, :self.width()//self.zoom]
-            clipped = (subsection - self.black).clip(0, self.white)
-            scaled = (clipped/clipped.max()*255).astype(np.uint8)
 
-            zoomed = ndimage.zoom(scaled, self.zoom, order=0)
-
-            stack = np.dstack((zoomed,)*3)
+            stack = np.dstack((self.zoomed,)*3)
             height, width, channel = stack.shape
             linebytes = 3*width
             image = QImage(stack.data, width, height, linebytes, QImage.Format_RGB888)
@@ -86,7 +101,7 @@ class ImageDisplay(QLabel):
             self.timer.start()
 
         else:
-            self.timer.timeout.connect(self.refresh)
+            self.timer.timeout.connect(self.renew_display)
 
 
 class Viewer(QWidget):
@@ -96,10 +111,7 @@ class Viewer(QWidget):
 
         self.setWindowTitle('Tester')
 
-        self.hbox = QHBoxLayout(self)
         self.main = ImageDisplay(self, np.ones((500, 500)))
-        self.hbox.addWidget(self.main)
-        self.setLayout(self.hbox)
         self.resize(800, 500)
 
         self.open(Path('test.fits'))
@@ -120,7 +132,7 @@ class Viewer(QWidget):
             self.main.zoom /= 2
 
     def resizeEvent(self, event):
-        self.main.refresh()
+        self.main.reslice()
 
 
 if __name__ == '__main__':
