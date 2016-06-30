@@ -2,6 +2,7 @@
 """
 
 import sys
+import os
 from pathlib import Path
 from PyQt5.QtWidgets import *
 from PyQt5.QtGui import QImage, QPixmap
@@ -14,9 +15,13 @@ from scipy import ndimage
 
 class ImageDisplay(QLabel):
 
-    def __init__(self, parent, image):
-        super(ImageDisplay, self).__init__(parent)
-        #self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+    CLIP = 3
+    ZOOM = 2
+    SLICE = 1
+
+    def __init__(self, image):
+        super(ImageDisplay, self).__init__()
+        self._refresh_queue = 0
 
         self._image = image.astype(np.float16)
         self._black = 0
@@ -26,7 +31,9 @@ class ImageDisplay(QLabel):
         self.timer = QtCore.QTimer(self)
         self.timer.setInterval(int(1/60*1000))
         self.timer.setSingleShot(True)
-        self.parent = parent
+        self.timer.timeout.connect(self.renew_display)
+
+        self.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Ignored)
 
     @property
     def image(self):
@@ -36,9 +43,8 @@ class ImageDisplay(QLabel):
     def image(self, new):
         self._image = new
         self._black = np.median(new)
-        self._white = 1000
-        self.sliced = self.image[:0,:0]
-        self.reslice()
+        self._white = np.percentile(self._image, 99.7)
+        self.renew_display(ImageDisplay.CLIP)
 
     @property
     def black(self):
@@ -47,7 +53,7 @@ class ImageDisplay(QLabel):
     @black.setter
     def black(self, new):
         self._black = new
-        self.reclip()
+        self.renew_display(ImageDisplay.CLIP)
 
     @property
     def white(self):
@@ -56,7 +62,7 @@ class ImageDisplay(QLabel):
     @white.setter
     def white(self, new):
         self._white = new
-        self.reclip()
+        self.renew_display(ImageDisplay.CLIP)
 
     @property
     def zoom(self):
@@ -65,29 +71,54 @@ class ImageDisplay(QLabel):
     @zoom.setter
     def zoom(self, new):
         self._zoom = new
-        self.rezoom()
+        self.renew_display(ImageDisplay.ZOOM)
 
-    def reslice(self):
-        self.sliced = self.image[:self.parent.height()//self.zoom, :self.parent.width()//self.zoom]
-        self.resize(*self.sliced.shape[::-1])
-        self.reclip()
+    def renew_display(self, stage=-1):
+        if self.timer.remainingTime() == -1:
 
-    def reclip(self):
-        clipped = (self.sliced - self.black).clip(0, self.white)
-        self.scaled = (clipped/clipped.max()*255).astype(np.uint8)
-        self.rezoom()
+            stage = max(stage, self._refresh_queue)
 
-    def rezoom(self):
-        self.zoomed = ndimage.zoom(self.scaled, self.zoom, order=0)
-        self.renew_display()
+            if stage == -1:
+                return
 
-    def renew_display(self):
-        stack = np.dstack((self.zoomed,)*3)
-        height, width, channel = stack.shape
-        linebytes = 3*width
-        image = QImage(stack.data, width, height, linebytes, QImage.Format_RGB888)
-        pixmap = QPixmap(image)
-        self.setPixmap(pixmap)
+            if stage >= ImageDisplay.CLIP:
+                clipped = (self.image - self.black).clip(0, self.white-self.black)
+                self.scaled = (clipped/clipped.max()*255).astype(np.uint8)
+            if stage >= ImageDisplay.ZOOM:
+                self.zoomed = ndimage.zoom(self.scaled, self.zoom, order=0)
+            if stage >= ImageDisplay.SLICE:
+                self.sliced = self.zoomed[:self.height(), :self.width()]
+                self.resize(*self.sliced.shape[::-1])
+
+            stack = np.dstack((self.sliced,)*3)
+            height, width, channel = stack.shape
+            linebytes = 3*width
+            image = QImage(stack.data, width, height, linebytes, QImage.Format_RGB888)
+            pixmap = QPixmap(image)
+            self.setPixmap(pixmap)
+
+            self._refresh_queue = -1
+            self.timer.start()
+
+        else:
+            self._refresh_queue = max(self._refresh_queue, stage)
+
+
+class DirList(QListWidget):
+
+    def __init__(self, directory):
+        super(DirList, self).__init__()
+        self.directory = directory
+        self.setFixedWidth(200)
+
+    def reload_entries(self):
+        entries = [entry.name for entry in os.scandir(self.directory)
+                   if entry.is_dir() or (
+                entry.is_file() and entry.name.endswith('.fits')
+                   )]
+
+        self.clear()
+        self.addItems(entries)
 
 
 class Viewer(QWidget):
@@ -95,14 +126,19 @@ class Viewer(QWidget):
     def __init__(self):
         super(Viewer, self).__init__()
 
-        self.setWindowTitle('Tester')
-
-        self.main = ImageDisplay(self, np.ones((500, 500)))
+        self.setWindowTitle('QFits')
         self.resize(800, 500)
 
+        grid = QGridLayout()
+        self.setLayout(grid)
+
+        self.main = ImageDisplay(np.ones((500, 500)))
+        grid.addWidget(self.main, 0, 0)
         self.open(Path('test.fits'))
 
-
+        self.box = DirList(os.getcwd())
+        grid.addWidget(self.box, 0, 1)
+        self.box.reload_entries()
 
     def open(self, path, hdu=0):
         with Path(path).open('rb') as input_file:
@@ -113,16 +149,19 @@ class Viewer(QWidget):
         if event.key() == QtCore.Qt.Key_Escape:
             self.close()
         elif event.key() == QtCore.Qt.Key_Equal:
+            print('zoom')
             self.main.zoom *= 2
         elif event.key() == QtCore.Qt.Key_Minus:
+            print('zoom')
             self.main.zoom /= 2
 
     def resizeEvent(self, event):
-        self.main.reslice()
+        self.main.renew_display(ImageDisplay.SLICE)
 
 
 if __name__ == '__main__':
     app = QApplication(sys.argv)
+    app.setStyle('Fusion')
     window = Viewer()
     window.show()
     app.exec_()
