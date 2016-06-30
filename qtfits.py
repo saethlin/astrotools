@@ -73,11 +73,8 @@ class ImageDisplay(QLabel):
         self.reclip()
 
     def reclip(self):
-        self.clipped = (self.sliced - self.black).clip(0, self.white)
-        self.rescale()
-
-    def rescale(self):
-        self.scaled = (self.clipped/self.clipped.max()*255).astype(np.uint8)
+        clipped = (self.sliced - self.black).clip(0, self.white)
+        self.scaled = (clipped/clipped.max()*255).astype(np.uint8)
         self.rezoom()
 
     def rezoom(self):
@@ -85,23 +82,12 @@ class ImageDisplay(QLabel):
         self.renew_display()
 
     def renew_display(self):
-        if self.timer.remainingTime() == -1:
-
-            stack = np.dstack((self.zoomed,)*3)
-            height, width, channel = stack.shape
-            linebytes = 3*width
-            image = QImage(stack.data, width, height, linebytes, QImage.Format_RGB888)
-            pixmap = QPixmap(image)
-            self.setPixmap(pixmap)
-
-            try:
-                self.timer.disconnect()
-            except TypeError:
-                pass
-            self.timer.start()
-
-        else:
-            self.timer.timeout.connect(self.renew_display)
+        stack = np.dstack((self.zoomed,)*3)
+        height, width, channel = stack.shape
+        linebytes = 3*width
+        image = QImage(stack.data, width, height, linebytes, QImage.Format_RGB888)
+        pixmap = QPixmap(image)
+        self.setPixmap(pixmap)
 
 
 class Viewer(QWidget):
