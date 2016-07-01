@@ -115,6 +115,12 @@ class ImageDisplay(QLabel):
     def keyPressEvent(self, event):
         self.parent.keyPressEvent(event)
 
+    def mousePressEvent(self, event):
+        self.clicked = True
+
+    def mouseMoveEvent(self, event):
+        print(event.y(), event.x())
+
 
 class DirList(QListWidget):
 
