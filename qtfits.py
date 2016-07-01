@@ -106,10 +106,11 @@ class ImageDisplay(QLabel):
 
 class DirList(QListWidget):
 
-    def __init__(self, directory):
+    def __init__(self, parent, directory):
         super(DirList, self).__init__()
         self.directory = directory
         self.setFixedWidth(200)
+        self.parent = parent
 
     def reload_entries(self):
         entries = [entry.name for entry in os.scandir(self.directory)
@@ -119,6 +120,9 @@ class DirList(QListWidget):
 
         self.clear()
         self.addItems(entries)
+
+    def keyPressEvent(self, event):
+        self.parent.keyPressEvent(event)
 
 
 class Viewer(QWidget):
@@ -136,9 +140,11 @@ class Viewer(QWidget):
         grid.addWidget(self.main, 0, 0)
         self.open(Path('test.fits'))
 
-        self.box = DirList(os.getcwd())
+        self.box = DirList(self, os.getcwd())
         grid.addWidget(self.box, 0, 1)
         self.box.reload_entries()
+
+        self.setFocus()
 
     def open(self, path, hdu=0):
         with Path(path).open('rb') as input_file:
@@ -149,10 +155,8 @@ class Viewer(QWidget):
         if event.key() == QtCore.Qt.Key_Escape:
             self.close()
         elif event.key() == QtCore.Qt.Key_Equal:
-            print('zoom')
             self.main.zoom *= 2
         elif event.key() == QtCore.Qt.Key_Minus:
-            print('zoom')
             self.main.zoom /= 2
 
     def resizeEvent(self, event):
