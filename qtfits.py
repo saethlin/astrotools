@@ -12,6 +12,21 @@ from PyQt5.QtCore import QTimer
 import numpy as np
 from astropy.io import fits
 from scipy import ndimage
+import time
+
+
+def zoom(arr, factor):
+    factor = int(factor)
+
+    if factor == 1:
+        return arr
+
+    new = np.empty(tuple(np.array(arr.shape)*factor), arr.dtype)
+    for x in range(factor):
+        for y in range(factor):
+            new[x::factor, y::factor] = arr
+
+    return new
 
 
 class ImageDisplay(QLabel):
@@ -27,7 +42,7 @@ class ImageDisplay(QLabel):
         self._image = image.astype(np.float16)
         self._black = 0
         self._white = image.max()
-        self._zoom = 1
+        self.zoom = 1
 
         self.timer = QTimer(self)
         self.timer.setInterval(int(1/60*1000))
@@ -45,6 +60,8 @@ class ImageDisplay(QLabel):
         self._image = new
         self._black = np.median(new)
         self._white = np.percentile(self._image, 99.7)
+        self.view_y = 0
+        self.view_x = 0
         self.refresh_display(ImageDisplay.CLIP)
 
     @property
@@ -65,24 +82,28 @@ class ImageDisplay(QLabel):
         self._white = new
         self.refresh_display(ImageDisplay.CLIP)
 
-    @property
-    def zoom(self):
-        return self._zoom
-
-    @zoom.setter
-    def zoom(self, new):
-        self._zoom = new
-        self.refresh_display(ImageDisplay.ZOOM)
-
     def increase_zoom(self):
         if self.zoom < 4:
             self.zoom *= 2
+            self.refresh_display(ImageDisplay.ZOOM)
 
     def decrease_zoom(self):
         if self.zoom > 0.125:
             self.zoom /= 2
+            if self.view_y + self.height() > self.image.shape[0] * self.zoom:
+                self.view_y = self.image.shape[0] * self.zoom - self.height()
+            if self.view_x + self.width() > self.image.shape[1] * self.zoom:
+                self.view_x = self.image.shape[1] * self.zoom - self.width()
+
+            if self.view_x < 0:
+                self.view_x = 0
+            if self.view_y < 0:
+                self.view_y = 0
+
+            self.refresh_display(ImageDisplay.ZOOM)
 
     def refresh_display(self, stage=-1):
+        start = time.time()
         if self.timer.remainingTime() == -1:
 
             stage = max(stage, self._refresh_queue)
@@ -91,18 +112,18 @@ class ImageDisplay(QLabel):
                 return
 
             if stage >= ImageDisplay.CLIP:
-                clipped = (self.image - self.black).clip(0, self.white-self.black)
-                self.scaled = (clipped/clipped.max()*255).astype(np.uint8)
+                self.clipped = (self.image - self.black).clip(0, self.white-self.black)
+                self.scaled = (self.clipped/self.clipped.max()*255).astype(np.uint8)
             if stage >= ImageDisplay.ZOOM:
-                self.zoomed = ndimage.zoom(self.scaled, self.zoom, order=0)
+                if self.zoom >= 1:
+                    self.zoomed = zoom(self.scaled, self.zoom)
+                else:
+                    self.zoomed = ndimage.zoom(self.scaled, self.zoom, order=0)
             if stage >= ImageDisplay.SLICE:
-                self.sliced = self.zoomed[:self.height(), :self.width()]
-                self.resize(*self.sliced.shape[::-1])
+                self.sliced = self.zoomed[self.view_y:self.height()+self.view_y, self.view_x:self.width()+self.view_x]
 
-            stack = np.dstack((self.sliced,)*3)
-            height, width, channel = stack.shape
-            linebytes = 3*width
-            image = QImage(stack.data, width, height, linebytes, QImage.Format_RGB888)
+            height, width = self.sliced.shape
+            image = QImage(bytes(self.sliced.data), width, height, width, QImage.Format_Grayscale8)
             pixmap = QPixmap(image)
             self.setPixmap(pixmap)
 
@@ -111,15 +132,36 @@ class ImageDisplay(QLabel):
 
         else:
             self._refresh_queue = max(self._refresh_queue, stage)
+        print(time.time()-start)
 
     def keyPressEvent(self, event):
         self.parent.keyPressEvent(event)
 
     def mousePressEvent(self, event):
-        self.clicked = True
+        self.last_x = event.x()
+        self.last_y = event.y()
 
     def mouseMoveEvent(self, event):
-        print(event.y(), event.x())
+        last_ypos = self.view_y
+        last_xpos = self.view_x
+        self.view_y += (self.last_y-event.y())
+        self.view_x += (self.last_x-event.x())
+        self.last_y = event.y()
+        self.last_x = event.x()
+
+        if self.view_y + self.height() > self.image.shape[0]*self.zoom:
+            self.view_y = self.image.shape[0]*self.zoom - self.height()
+        if self.image.shape[1]*self.zoom - self.view_x < self.width():
+            self.view_x = self.image.shape[1]*self.zoom - self.width()
+
+        if self.view_y < 0:
+            self.view_y = 0
+        if self.view_x < 0:
+            self.view_x = 0
+
+        moved = (last_ypos != self.view_y) or (last_xpos != self.view_x)
+        if moved:
+            self.refresh_display(ImageDisplay.SLICE)
 
 
 class DirList(QListWidget):
@@ -207,12 +249,13 @@ class Viewer(QWidget):
 
     def open(self, path, hdu=0):
         with Path(path).open('rb') as input_file:
-            image = fits.open(input_file)[hdu].data.astype(np.float16)
+            image = fits.open(input_file)[hdu].data.astype(np.float32)
         self.main.image = image
 
     def keyPressEvent(self, event):
-        handler = self.handlers[event.key()]
-        handler()
+        if event.key() in self.handlers:
+            handler = self.handlers[event.key()]
+            handler()
 
     def resizeEvent(self, event):
         self.main.refresh_display(ImageDisplay.SLICE)
