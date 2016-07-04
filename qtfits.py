@@ -1,4 +1,9 @@
 """
+TODO:
+Minimap display
+Header display
+Toolbar?
+Histogram with draggable sliders
 """
 
 import sys
@@ -12,7 +17,6 @@ from PyQt5.QtCore import QTimer
 import numpy as np
 from astropy.io import fits
 from scipy import ndimage
-import time
 
 
 def zoom(arr, factor):
@@ -35,13 +39,13 @@ class ImageDisplay(QLabel):
     ZOOM = 2
     SLICE = 1
 
-    def __init__(self, image):
+    def __init__(self, minimap):
         super(ImageDisplay, self).__init__()
         self._refresh_queue = 0
 
-        self._image = image.astype(np.float16)
-        self._black = 0
-        self._white = image.max()
+        self._image = None
+        self._black = None
+        self._white = None
         self.zoom = 1
 
         self.timer = QTimer(self)
@@ -50,6 +54,8 @@ class ImageDisplay(QLabel):
         self.timer.timeout.connect(self.refresh_display)
 
         self.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Ignored)
+
+        self.minimap = minimap
 
     @property
     def image(self):
@@ -62,6 +68,7 @@ class ImageDisplay(QLabel):
         self._white = np.percentile(self._image, 99.7)
         self.view_y = 0
         self.view_x = 0
+        self.minimap.image = new
         self.refresh_display(ImageDisplay.CLIP)
 
     @property
@@ -111,8 +118,9 @@ class ImageDisplay(QLabel):
                 return
 
             if stage >= ImageDisplay.CLIP:
-                self.clipped = (self.image - self.black).clip(0, self.white-self.black)
-                self.scaled = (self.clipped/self.clipped.max()*255).astype(np.uint8)
+                clipped = (self.image - self.black).clip(0, self.white-self.black)
+                self.scaled = (clipped/clipped.max()*255).astype(np.uint8)
+                self.minimap.reclip(self.black, self.white)
             if stage >= ImageDisplay.ZOOM:
                 if self.zoom >= 1:
                     self.zoomed = zoom(self.scaled, self.zoom)
@@ -125,6 +133,8 @@ class ImageDisplay(QLabel):
             image = QImage(bytes(self.sliced.data), width, height, width, QImage.Format_Grayscale8)
             pixmap = QPixmap(image)
             self.setPixmap(pixmap)
+
+            self.minimap.refresh(self.view_y, self.view_x, self.height(), self.width(), self.zoom)
 
             self._refresh_queue = -1
             self.timer.start()
@@ -160,6 +170,51 @@ class ImageDisplay(QLabel):
         moved = (last_ypos != self.view_y) or (last_xpos != self.view_x)
         if moved:
             self.refresh_display(ImageDisplay.SLICE)
+
+
+class MiniMap(QLabel):
+
+    SIZE = 200
+
+    def __init__(self):
+        super(MiniMap, self).__init__()
+        self.conversion = None
+        self._image = None
+        self.scaled = None
+
+    @property
+    def image(self):
+        return self._image
+
+    @image.setter
+    def image(self, new):
+        self.conversion = MiniMap.SIZE/max(new.shape)
+        self._image = ndimage.zoom(new, self.conversion)
+
+    def reclip(self, black, white):
+        clipped = (self.image - black).clip(0, white - black)
+        self.scaled = (clipped / clipped.max() * 255).astype(np.uint8)
+
+    def refresh(self, y, x, height, width, zoom):
+        stack = np.dstack((self.scaled,) * 3)
+        scale = self.conversion / zoom
+
+        top = scale * y
+        bot = scale * (y + height)
+        if bot > MiniMap.SIZE:
+            bot = MiniMap.SIZE
+        left = scale * x
+        right = scale * (x + width)
+        if right > MiniMap.SIZE:
+            right = MiniMap.SIZE
+        stack[top, left:right, 1] = 255
+        stack[bot - 1, left:right, 1] = 255
+        stack[top:bot, left, 1] = 255
+        stack[top:bot, right - 1, 1] = 255
+
+        height, width, channels = stack.shape
+        image = QImage(bytes(stack.data), width, height, 3 * width, QImage.Format_RGB888)
+        self.setPixmap(QPixmap(image))
 
 
 class DirList(QListWidget):
@@ -218,20 +273,21 @@ class Viewer(QWidget):
     def __init__(self):
         super(Viewer, self).__init__()
 
-        self.setWindowTitle('QFits')
+        self.setWindowTitle('QtFits')
         self.resize(800, 500)
 
         grid = QGridLayout()
         self.setLayout(grid)
 
-        self.main = ImageDisplay(np.ones((500, 500)))
-        grid.addWidget(self.main, 0, 0)
+        self.mini = MiniMap()
+        grid.addWidget(self.mini, 0, 1)
+
+        self.main = ImageDisplay(self.mini)
+        grid.addWidget(self.main, 0, 0, 0, 1)
         self.open(Path('test.fits'))
 
         self.box = DirList(self, os.getcwd())
-        grid.addWidget(self.box, 0, 1)
-
-        self.setFocus()
+        grid.addWidget(self.box, 1, 1)
 
         self.handlers = dict()
         self.handlers[Qt.Key_Escape] = self.close
@@ -243,7 +299,6 @@ class Viewer(QWidget):
         self.handlers[Qt.Key_Right] = self.box.select
         self.handlers[Qt.Key_Backspace] = self.box.back
         self.handlers[Qt.Key_Left] = self.box.back
-
 
     def open(self, path, hdu=0):
         with Path(path).open('rb') as input_file:
