@@ -103,7 +103,6 @@ class ImageDisplay(QLabel):
             self.refresh_display(ImageDisplay.ZOOM)
 
     def refresh_display(self, stage=-1):
-        start = time.time()
         if self.timer.remainingTime() == -1:
 
             stage = max(stage, self._refresh_queue)
@@ -132,7 +131,6 @@ class ImageDisplay(QLabel):
 
         else:
             self._refresh_queue = max(self._refresh_queue, stage)
-        print(time.time()-start)
 
     def keyPressEvent(self, event):
         self.parent.keyPressEvent(event)
