@@ -1,35 +1,40 @@
 """
 TODO:
-Minimap display
+Histogram sliders
 Header display
 Toolbar?
-Histogram with draggable sliders
 """
 
-import sys
 import os
-from pathlib import Path
-from PyQt5.QtWidgets import *
-from PyQt5.QtGui import QImage, QPixmap
-from PyQt5.QtCore import Qt
-from PyQt5.QtCore import QTimer
-
 import numpy as np
 from astropy.io import fits
-from scipy import ndimage
-import time
+from PyQt5.QtWidgets import *
+from PyQt5.QtGui import QImage, QPixmap
+from PyQt5.QtCore import Qt, QTimer
 
 
-def zoom(arr, factor):
-    factor = int(factor)
-
-    if factor == 1:
-        return arr
-
-    new = np.empty(tuple(np.array(arr.shape)*factor), arr.dtype)
-    for x in range(factor):
-        for y in range(factor):
-            new[x::factor, y::factor] = arr
+def zoom(arr, *factors):
+    if len(factors) == 1:
+        y_zoom = factors[0]
+        x_zoom = factors[0]
+    else:
+        y_zoom = factors[0]
+        x_zoom = factors[1]
+    if y_zoom == 1 and x_zoom == 1:
+        new = arr
+    elif y_zoom > 1 and x_zoom > 1:
+        factor = int(y_zoom)
+        new = np.empty(tuple(np.array(arr.shape)*factor), arr.dtype)
+        for x in range(factor):
+            for y in range(factor):
+                new[x::factor, y::factor] = arr
+    else:
+        y = np.around(np.linspace(0, arr.shape[0]-1, arr.shape[0]*y_zoom)).astype(np.int32)
+        x = np.around(np.linspace(0, arr.shape[1]-1, arr.shape[1]*x_zoom)).astype(np.int32)
+        y.shape = (-1, 1)
+        x.shape = (1, -1)
+        coords = [y, x]
+        new = arr[coords]
 
     return new
 
@@ -126,7 +131,7 @@ class ImageDisplay(QLabel):
                 if self.zoom >= 1:
                     self.zoomed = zoom(self.scaled, self.zoom)
                 else:
-                    self.zoomed = ndimage.zoom(self.scaled, self.zoom, order=0)
+                    self.zoomed = zoom(self.scaled, self.zoom)
             if stage >= ImageDisplay.SLICE:
                 self.sliced = self.zoomed[self.view_y:self.height()+self.view_y, self.view_x:self.width()+self.view_x]
 
@@ -182,6 +187,7 @@ class MiniMap(QLabel):
         self.conversion = None
         self._image = None
         self.scaled = None
+        self.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Fixed)
 
     @property
     def image(self):
@@ -190,7 +196,7 @@ class MiniMap(QLabel):
     @image.setter
     def image(self, new):
         self.conversion = MiniMap.SIZE/max(new.shape)
-        self._image = ndimage.zoom(new, self.conversion)
+        self._image = zoom(new, self.conversion)
 
     def reclip(self, black, white):
         clipped = (self.image - black).clip(0, white - black)
@@ -234,7 +240,6 @@ class ImageHistogram(QLabel):
         self.timer.setSingleShot(True)
         self.timer.timeout.connect(self.resizer)
 
-
     @property
     def image(self):
         return self._image
@@ -272,7 +277,7 @@ class ImageHistogram(QLabel):
 
     def resizer(self):
         if self._refresh_queue:
-            resized = ndimage.zoom(self.histogram_image, (1, self.width() / self.histogram_image.shape[1]), order=0)
+            resized = zoom(self.histogram_image, 1, self.width()/self.histogram_image.shape[1])
             height, width = resized.shape
             image = QImage(bytes(resized), width, height, width, QImage.Format_Grayscale8)
             pixmap = QPixmap(image)
@@ -337,10 +342,10 @@ class DirList(QListWidget):
         self.parent.keyPressEvent(event)
 
 
-class Viewer(QWidget):
+class QtFits(QWidget):
 
     def __init__(self):
-        super(Viewer, self).__init__()
+        super(QtFits, self).__init__()
 
         self.setWindowTitle('QtFits')
         self.resize(800, 500)
@@ -355,10 +360,10 @@ class Viewer(QWidget):
         grid.addWidget(self.main, 0, 0, 0, 1)
 
         self.box = DirList(self, os.getcwd())
-        grid.addWidget(self.box, 1, 1)
+        grid.addWidget(self.box, 1, 1, 2, 1)
 
         self.histogram = ImageHistogram()
-        grid.addWidget(self.histogram, 3, 0)
+        grid.addWidget(self.histogram, 2, 0)
 
         self.handlers = dict()
         self.handlers[Qt.Key_Escape] = self.close
@@ -371,10 +376,10 @@ class Viewer(QWidget):
         self.handlers[Qt.Key_Backspace] = self.box.back
         self.handlers[Qt.Key_Left] = self.box.back
 
-        self.open(Path('test.fits'))
+        self.open('test.fits')
 
     def open(self, path, hdu=0):
-        with Path(path).open('rb') as input_file:
+        with open(path, 'rb') as input_file:
             image = fits.open(input_file)[hdu].data.astype(np.float32)
         self.main.image = image
         self.histogram.image = image
@@ -389,8 +394,8 @@ class Viewer(QWidget):
 
 
 if __name__ == '__main__':
-    app = QApplication(sys.argv)
+    app = QApplication([])
     app.setStyle('Fusion')
-    window = Viewer()
+    window = QtFits()
     window.show()
     app.exec_()
