@@ -17,6 +17,7 @@ from PyQt5.QtCore import QTimer
 import numpy as np
 from astropy.io import fits
 from scipy import ndimage
+import time
 
 
 def zoom(arr, factor):
@@ -217,6 +218,74 @@ class MiniMap(QLabel):
         self.setPixmap(QPixmap(image))
 
 
+class ImageHistogram(QLabel):
+
+    HEIGHT = 50
+
+    def __init__(self):
+        super(ImageHistogram, self).__init__()
+        self._image = None
+        self.plot = None
+        self.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Fixed)
+
+        self._refresh_queue = False
+        self.timer = QTimer(self)
+        self.timer.setInterval(int(1/60*1000))
+        self.timer.setSingleShot(True)
+        self.timer.timeout.connect(self.resizer)
+
+
+    @property
+    def image(self):
+        return self._image
+
+    @image.setter
+    def image(self, new):
+        self._image = new
+        screen_width = QDesktopWidget().screenGeometry().width()
+
+        data = new.ravel()
+        lower_bound, upper_bound = np.percentile(data[::100], [0.01, 99.95])
+        data = data[(data > lower_bound) & (data < upper_bound)]
+
+        # Rescale data
+        data -= data.min()
+        data *= screen_width/data.max()
+
+        histogram = np.bincount(data.astype(int))[:-1]
+
+        # Smooth out the histogram
+        left = np.roll(histogram, -1)
+        right = np.roll(histogram, 1)
+        peak_mask = (histogram > left) & (histogram > right) & (left > 0) & (right > 0)
+        histogram[peak_mask] = ((left + right) / 2)[peak_mask]
+
+        histogram = histogram / histogram.max() * ImageHistogram.HEIGHT
+
+        # Manual plotting
+        coords = np.arange(0, ImageHistogram.HEIGHT)[::-1]
+        coords = np.repeat(coords[:, np.newaxis], screen_width, axis=1)
+
+        histogram = coords > histogram[np.newaxis, :]
+
+        self.histogram_image = (histogram * 255).astype(np.uint8)
+
+    def resizer(self):
+        if self._refresh_queue:
+            resized = ndimage.zoom(self.histogram_image, (1, self.width() / self.histogram_image.shape[1]), order=0)
+            height, width = resized.shape
+            image = QImage(bytes(resized), width, height, width, QImage.Format_Grayscale8)
+            pixmap = QPixmap(image)
+            self.setPixmap(pixmap)
+            self._refresh_queue = False
+
+    def resizeEvent(self, event):
+        self._refresh_queue = True
+        if self.timer.remainingTime() == -1:
+            self.resizer()
+            self.timer.start()
+
+
 class DirList(QListWidget):
 
     def __init__(self, parent, directory):
@@ -284,10 +353,12 @@ class Viewer(QWidget):
 
         self.main = ImageDisplay(self.mini)
         grid.addWidget(self.main, 0, 0, 0, 1)
-        self.open(Path('test.fits'))
 
         self.box = DirList(self, os.getcwd())
         grid.addWidget(self.box, 1, 1)
+
+        self.histogram = ImageHistogram()
+        grid.addWidget(self.histogram, 3, 0)
 
         self.handlers = dict()
         self.handlers[Qt.Key_Escape] = self.close
@@ -300,10 +371,13 @@ class Viewer(QWidget):
         self.handlers[Qt.Key_Backspace] = self.box.back
         self.handlers[Qt.Key_Left] = self.box.back
 
+        self.open(Path('test.fits'))
+
     def open(self, path, hdu=0):
         with Path(path).open('rb') as input_file:
             image = fits.open(input_file)[hdu].data.astype(np.float32)
         self.main.image = image
+        self.histogram.image = image
 
     def keyPressEvent(self, event):
         if event.key() in self.handlers:
