@@ -16,8 +16,7 @@ from datetime import datetime
 import numpy as np
 from astropy.io import fits
 from scipy.optimize import curve_fit
-from scipy.ndimage.interpolation import zoom
-from scipy.ndimage.interpolation import shift
+import scipy.ndimage
 
 
 def shift_int(image, base, y, x):
@@ -74,12 +73,12 @@ def align_int(image, base, span=None, y_init=0, x_init=0):
     return best_coords
 
 
-def imshift(image, coords):
+def imshift(image, y, x):
     """
     Wrapper for scipy.ndimage.interpolation.shift() that takes and returns
     flattened arrays, to be compatible with scipy.optimize.curve_fit()
     """
-    return shift(image.reshape(imshape), coords).ravel()
+    return scipy.ndimage.interpolation.shift(image.reshape(imshape), [y, x]).ravel()
 
 
 def make_pretty(image, white_level=50):
@@ -109,14 +108,14 @@ def align(original_image, original_base, exact=False):
     image = make_pretty(original_image)
     base = make_pretty(original_base)
 
-    small_image = zoom(image, 0.1)
-    small_base = zoom(base, 0.1)
+    small_image = scipy.ndimage.interpolation.zoom(image, 0.1)
+    small_base = scipy.ndimage.interpolation.zoom(base, 0.1)
     span = min(small_image.shape)//4
     y, x = align_int(small_image, small_base, span, 0, 0)
 
     y, x = y*5, x*5
-    small_image = zoom(image, 0.5)
-    small_base = zoom(base, 0.5)
+    small_image = scipy.ndimage.interpolation.zoom(image, 0.5)
+    small_base = scipy.ndimage.interpolation.zoom(base, 0.5)
     span = 10
     y, x = align_int(small_image, small_base, span, y, x)
 
@@ -124,38 +123,50 @@ def align(original_image, original_base, exact=False):
     span = 4
     y, x = align_int(image, base, span, y, x)
 
-    if exact:
-        (y, x), _ = curve_fit(imshift, image.ravel(), base.ravel(),
-                              p0=[y, x])
+    print(y, x)
 
-    return (y, x), shift(image, (y, x))
+    if exact:
+        (y, x), _ = curve_fit(imshift, image.ravel(), base.ravel(), p0=[y, x])
+
+    return (y, x), scipy.ndimage.interpolation.shift(image, [y, x])
 
 
 if __name__ == '__main__':
+    from scipy.misc import imsave
+    """
     image_name, base_name = sys.argv[1:3]
     if len(sys.argv) > 3:
         do_exact = bool(sys.argv[3])
     else:
         do_exact = False
     base = fits.open(base_name)[0].data
+    """
+    do_exact = False
 
-    hdu = fits.open(image_name)[0]
-    image = hdu.data
-    head = hdu.header
+    files = ['/home/ben/Downloads/yzboo/'+f for f in os.listdir('/home/ben/Downloads/yzboo')]
+    base_name = '/home/ben/Downloads/yzboo/yzboo.00000046.fits'
+    base = fits.open(base_name)[0].data
+    files = files[1:]
 
-    if do_exact:
+    for image_name in files:
+        hdu = fits.open(image_name)[0]
+        image = hdu.data
+        head = hdu.header
+
         imshape = image.shape
 
-    shift, aligned = align(image, base, exact=do_exact)
+        shift, aligned = align(image, base, exact=do_exact)
 
-    head.append(('ALIGNED', str(datetime.now())+', '+base_name,
-                 'date+time aligned, base'))
+        head.append(('ALIGNED', str(datetime.now())+', '+base_name,
+                     'date+time aligned, base'))
 
-    new_hdu = fits.PrimaryHDU(data=image, header=head)
-    hdulist = fits.HDUList(hdus=[new_hdu])
+        new_hdu = fits.PrimaryHDU(data=image, header=head)
+        hdulist = fits.HDUList(hdus=[new_hdu])
 
-    name = os.path.basename(image_name)
-    name = name.rsplit('.', 1)[0]
-    name += '_aligned.fits'
+        name = image_name.rsplit('.', 1)[0]
+        name += '_aligned.fits'
 
-    hdulist.writeto(name, clobber=True)
+        hdulist.writeto(name, clobber=True)
+
+        png_name = name.rsplit('.', 1)[0] + '.png'
+        imsave(png_name, np.dstack((make_pretty(base), make_pretty(aligned), np.zeros_like(base))))
