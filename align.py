@@ -1,29 +1,31 @@
 #!/usr/bin/env python
 """
 This module (or script) provides tools for aligning images. The general
-technique is to pick an image in a set (call it the template) and shift every
+technique is to pick an image in a set (the template) and shift every
 other image to match up features.
 
-For scientific data processing do_exact should be False since it doesn't
-conserve flux. It can be set to true for cosmetic image processing,
-since it will generate better alignment and thus crisper combined images.
-
-shift_int -- Quickly shifts two images and compute a similarity parameter
-intalign -- Brute-force integer alignment of two images
-imshift -- Wrapper for scipy.ndimage.interpolation.shift for curve_fit
+shift_int -- Quickly shifts two images and compute a similarity parameter,
+lower is better
+align_int -- Brute-force integer alignment of two images within bounds
+make_pretty -- Apply median-based sky removal and white threshold
 align -- Align an image to a template
 """
 
-import sys
 import os
-from datetime import datetime
 import numpy as np
-from astropy.io import fits
-from scipy.optimize import curve_fit
-import scipy.ndimage
+from scipy.ndimage.interpolation import shift
+from scipy.ndimage.filters import median_filter
 
 
 def median_downsample(image, factor):
+    """
+    Simultaneously downsample and median filter an image.
+    Each pixel at [y,x] in the returned image is the median of
+    the region [y*factor:(y+1)*factor, x*factor:(x+1)*factor].
+
+    This can result in some significant loss of data but will preserve
+    most of the large features in an image.
+    """
     stack = np.empty((factor, image.shape[0]//factor, image.shape[1]//factor))
 
     subimage = image[:image.shape[0]//factor * factor, :image.shape[1]//factor * factor]
@@ -37,8 +39,9 @@ def median_downsample(image, factor):
 def shift_int(template, image, y, x):
     """
     Quickly shift an image with respect to a template and return a parameter
-    that is minimized when the images are well aligned, and not biased towards
-    large shifts as a simple sum of squares would be.
+    that is minimized when the images are well aligned. The sum of squres is
+    not applicable here because that favors reducing the number of pixels
+    in the image, which is the effect of applying a large shift.
 
     Arguments:
     template -- The image to match
@@ -47,19 +50,17 @@ def shift_int(template, image, y, x):
     x -- Integer offset along axis 1
     """
     y, x = int(y), int(x)
-
     h, w = image.shape
 
-    new_template = template[max(0, y):min(h, h+y), max(0, x):min(w, w+x)]
+    shifted_template = template[max(0, y):min(h, h+y), max(0, x):min(w, w+x)]
+    shifted_image = image[max(0, -y):min(h, h-y), max(0, -x):min(w, w-x)]
 
-    new_image = image[max(0, -y):min(h, h-y), max(0, -x):min(w, w-x)]
-
-    return np.mean((new_template-new_image)**2)
+    return np.mean((shifted_template-shifted_image)**2)
 
 
 def align_int(template, image, span=None, y_init=0, x_init=0):
     """
-    Quickly find the offsets along axes 0 and 1 that align image to template. If
+    Find integer offsets along axes 0 and 1 that align image to template. If
     the image is not aligned in coordinates between guess-span and guess+span
     this will produce an erroneous result.
 
@@ -88,14 +89,6 @@ def align_int(template, image, span=None, y_init=0, x_init=0):
     return best_coords
 
 
-def imshift(image, y, x):
-    """
-    Wrapper for scipy.ndimage.interpolation.shift() that returns a
-    flattened array, to be compatible with scipy.optimize.curve_fit
-    """
-    return scipy.ndimage.interpolation.shift(image, [y, x]).ravel()
-
-
 def make_pretty(image, white_level=50):
     """Rescale and clip an astronomical image to make features more obvious.
 
@@ -115,7 +108,7 @@ def make_pretty(image, white_level=50):
     return pretty
 
 
-def align(template, image, exact=False):
+def align(template, image):
     """Find the coordinate offsets that align an image to a template
 
     The image is first downsampled with a median filter and aligned,
@@ -126,9 +119,7 @@ def align(template, image, exact=False):
     Arguments:
     template -- The image to match
     image -- The input image that is shifted
-    exact -- If True, alignment is computed to sub-pixel accuracy
     """
-
     clipped_template = make_pretty(template)
     clipped_image = make_pretty(image)
 
@@ -138,35 +129,33 @@ def align(template, image, exact=False):
     y, x = align_int(small_template, small_image, span)
 
     y, x = y*5, x*5
-    small_template = median_downsample(template, 2)
-    small_image = median_downsample(image, 2)
+    small_template = median_downsample(clipped_template, 2)
+    small_image = median_downsample(clipped_image, 2)
     span = 10
     y, x = align_int(small_template, small_image, span, y, x)
 
     y, x = y*2, x*2
     span = 4
-    y, x = align_int(template, image, span, y, x)
+    y, x = align_int(clipped_template, clipped_image, span, y, x)
 
-    if exact:
-        (y, x), _ = curve_fit(imshift, image, template.ravel(), p0=[y, x])
-        return (y, x), scipy.ndimage.interpolation.shift(image, [y, x])
-
-    else:
-        return (y, x), scipy.ndimage.interpolation.shift(image, [y, x], order=0, prefilter=False)
+    return (y, x), shift(image, [y, x], order=0, prefilter=False)
 
 
 if __name__ == '__main__':
+    from astropy.io import fits
+
     do_exact = False
     data_dir = '/home/ben/Downloads/yzboo/'
     paths = [os.path.join(data_dir, f) for f in os.listdir(data_dir) if f.endswith('.fits')]
+    paths.sort()
     template = fits.getdata(paths[0])
 
     for path in paths[1:]:
         hdulist = fits.open(path)
         image = hdulist[0].data
 
-        shift, aligned = align(template, image, exact=True)
-        shift, aligned = align(template, image, exact=False)
+        offset, aligned = align(template, image)
 
         save_name = path.replace('.fits', '_aligned.fits')
+        hdulist[0].data = aligned
         hdulist.writeto(save_name, clobber=True)
