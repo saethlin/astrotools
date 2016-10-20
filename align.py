@@ -60,8 +60,8 @@ def shift_int(template, image, y, x):
 def align_int(template, image, span=None, y_init=0, x_init=0):
     """
     Find integer offsets along axes 0 and 1 that align image to template. If
-    the image is not aligned in coordinates between guess-span and guess+span
-    this will produce an erroneous result.
+    the image is not aligned between guess-span and guess+span, this will
+    produce an erroneous result.
 
     Arguments:
     template -- The image to match
@@ -91,13 +91,13 @@ def align_int(template, image, span=None, y_init=0, x_init=0):
 def make_pretty(image, white_level=50):
     """Rescale and clip an astronomical image to make features more obvious.
 
-    This rescaling massively improves the sensitivity of alignment by removing
-    background and decreases the impact of hot pixels and cosmic rays by
-    introducing a white clipping level that should be set so that most of
-    a star's psf is clipped.
+    This rescaling massively improves the sensitivity of alignment by
+    removing background and decreases the impact of hot pixels and cosmic
+    rays by introducing a white clipping level that should be set so that
+    most of a star's psf is clipped.
 
     Arguments:
-    white_level -- the clipping level, as a multiple of the median-subtracted
+    white_level -- the clipping level as a multiple of the median-subtracted
     image's mean. For most images, 50 is good enough.
     """
     pretty = (image - np.median(image)).clip(0)
@@ -111,9 +111,10 @@ def align(template, image):
     """Find the coordinate offsets that align an image to a template
 
     The image is first downsampled with a median filter and aligned,
-    then resampled with a smaller factor and aligned using the previous offset
-    The median filter is critical for aligning images with a lot of small
-    artifacts such as hot pixels or cosmic rays but may erase small features
+    then resampled with a smaller factor and aligned using the previous
+    offset. The median filter is critical for aligning images with a lot
+    of small artifacts such as hot pixels or cosmic rays but may erase
+    small features
 
     Arguments:
     template -- The image to match
