@@ -12,7 +12,10 @@ align -- Align an image to a template
 """
 
 import os
+import operator
+from concurrent.futures import ThreadPoolExecutor
 import numpy as np
+import numba
 from scipy.ndimage.interpolation import shift
 
 
@@ -35,6 +38,7 @@ def median_downsample(image, factor):
     return np.median(stack, axis=0)
 
 
+@numba.jit(nopython=True, cache=True, nogil=True)
 def shift_int(template, image, y, x):
     """
     Quickly shift an image with respect to a template and return a parameter
@@ -70,22 +74,21 @@ def align_int(template, image, span=None, y_init=0, x_init=0):
     y0 -- A guess at the offset along axis 0
     x0 -- A guess at the offset along axis 1
     """
-    best = shift_int(template, image, y_init, x_init)
-    best_coords = y_init, x_init
     offsets = np.arange(-span, span)
 
-    for y_offset in offsets:
-        for x_offset in offsets:
-            y = y_init + y_offset
-            x = x_init + x_offset
+    results = []
+    coords = []
+    with ThreadPoolExecutor() as executor:
+        for y_offset in offsets:
+            for x_offset in offsets:
+                args = (template, image, y_init+y_offset, x_init+x_offset)
+                results.append(executor.submit(shift_int, *args))
+                coords.append([y_init + y_offset, x_init + x_offset])
 
-            fit_coeff = shift_int(template, image, y, x)
-
-            if fit_coeff < best:
-                best = fit_coeff
-                best_coords = y, x
-
-    return best_coords
+    results = [x.result() for x in results]
+    results = zip(results, coords)
+    best_result = min(results, key=operator.itemgetter(0))
+    return best_result[1]
 
 
 def make_pretty(image, white_level=50):
