@@ -1,72 +1,56 @@
+import os
 import numpy as np
 from astropy.io import fits
 import cv2
 from scipy.misc import imsave
 
 
-def make_pretty(image, white_level=50):
+def prettify(image, white_level=50):
     """
-    Rescale and clip an astronomical image to make features more obvious.
+    Rescale an image and convert dtype for comparability with findTransformECC
 
     Arguments:
-    white_level -- the clipping level, as a multiple of the median-subtracted
-    image's mean.
+    white_level -- clipping level in multiples of the median-subtracted image's mean.
     """
-    pretty = (image - np.median(image)).clip(0)
-    pretty /= np.mean(pretty)
-    pretty = pretty.clip(0, white_level)
+    scaled = (image - np.median(image)).clip(0)
+    scaled /= np.mean(scaled)
+    scaled.clip(0, white_level, out=scaled)
 
-    return pretty
-
-
-image1 = fits.getdata('/home/ben/Downloads/yzboo/yzboo.00000030.fits')
-image2 = fits.getdata('/home/ben/Downloads/yzboo/yzboo.00000031.fits')
-
-image1 = make_pretty(image1)
-image2 = make_pretty(image2)
-
-image1 *= 255/image1.max()
-image2 *= 255/image2.max()
-
-image1 = image1.astype(np.uint8)
-image2 = image2.astype(np.uint8)
+    return scaled.astype(np.float32)
 
 
-# Here begins the learnopencv.com example script
-# Find size of image1
-sz = image1.shape
+def align_image(template, image, warp_matrix=None):
+    # Clean sky, apply clipping to enhance contrast, and convert to a dtype that cv2 will accept
+    clipped_template = prettify(template)
+    clipped_image = prettify(image)
 
-# Define the motion model
-warp_mode = cv2.MOTION_TRANSLATION
+    if warp_matrix is None:
+        warp_matrix = np.eye(2, 3, dtype=np.float32)  # findTransformECC requires 32-bit float
 
-# Define 2x3 or 3x3 matrices and initialize the matrix to identity
-if warp_mode == cv2.MOTION_HOMOGRAPHY:
-    warp_matrix = np.eye(3, 3, dtype=np.float32)
-else:
-    warp_matrix = np.eye(2, 3, dtype=np.float32)
+    warp_mode = cv2.MOTION_TRANSLATION  # No rotation
+    iterations = 100
+    termination_eps = 1e-3
 
-# Specify the number of iterations.
-number_of_iterations = 5000
+    criteria = (cv2.TERM_CRITERIA_EPS | cv2.TERM_CRITERIA_COUNT, iterations, termination_eps)
 
-# Specify the threshold of the increment
-# in the correlation coefficient between two iterations
-termination_eps = 1e-10
+    cc, warp_matrix = cv2.findTransformECC(clipped_template, clipped_image, warp_matrix, warp_mode, criteria)
+    warp_matrix = np.around(warp_matrix)  # Round the warp matrix to remove interpolation and conserve flux
 
-# Define termination criteria
-criteria = (cv2.TERM_CRITERIA_EPS | cv2.TERM_CRITERIA_COUNT, number_of_iterations, termination_eps)
+    aligned = cv2.warpAffine(image, warp_matrix, image.shape[::-1], flags=cv2.INTER_LINEAR + cv2.WARP_INVERSE_MAP)
 
-# Run the ECC algorithm. The results are stored in warp_matrix.
-(cc, warp_matrix) = cv2.findTransformECC(image1, image2, warp_matrix, warp_mode, criteria)
-
-if warp_mode == cv2.MOTION_HOMOGRAPHY:
-    # Use warpPerspective for Homography 
-    image2_aligned = cv2.warpPerspective(image2, warp_matrix, (sz[1], sz[0]), flags=cv2.INTER_LINEAR + cv2.WARP_INVERSE_MAP)
-else:
-    # Use warpAffine for Translation, Euclidean and Affine
-    image2_aligned = cv2.warpAffine(image2, warp_matrix, (sz[1], sz[0]), flags=cv2.INTER_LINEAR + cv2.WARP_INVERSE_MAP)
+    return aligned, warp_matrix
 
 
-# Ben's nifty way to look at how well two images are aligned
-imsave('aligned.png', np.dstack([image1, image2_aligned, np.zeros_like(image1)]))
-imsave('images.png', np.dstack([image1, image2, np.zeros_like(image1)]))
+if __name__ == '__main__':
+    target_path = '/home/ben/Downloads/yzboo/'
+    paths = [os.path.join(target_path, entry) for entry in os.listdir(target_path) if entry.endswith('.fits')]
 
+    template = fits.getdata(paths[0])
+
+    warp_matrix = None
+    for path in paths[1:]:
+        image = fits.getdata(path)
+        aligned, warp_matrix = align_image(template, image, warp_matrix)
+
+        diagnostic = np.dstack([prettify(template), prettify(aligned), np.zeros_like(template)])
+        imsave(path.replace('.fits', '.png'), diagnostic)
