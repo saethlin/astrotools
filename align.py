@@ -14,7 +14,6 @@ align -- Align an image to a template
 import os
 import numpy as np
 from scipy.ndimage.interpolation import shift
-from scipy.ndimage.filters import median_filter
 
 
 def median_downsample(image, factor):
