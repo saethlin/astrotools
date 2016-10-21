@@ -58,7 +58,12 @@ def shift_int(template, image, y, x):
     shifted_template = template[max(0, y):min(h, h+y), max(0, x):min(w, w+x)]
     shifted_image = image[max(0, -y):min(h, h-y), max(0, -x):min(w, w-x)]
 
-    return np.mean((shifted_template-shifted_image)**2)
+    output = 0.0
+    for row in range(shifted_image.shape[0]):
+        for col in range(shifted_image.shape[1]):
+            output += (shifted_template[row, col] - shifted_image[row, col])**2
+
+    return output/shifted_image.size
 
 
 def align_int(template, image, span=None, y_init=0, x_init=0):
@@ -147,7 +152,6 @@ def align(template, image):
 if __name__ == '__main__':
     from astropy.io import fits
 
-    do_exact = False
     data_dir = '/home/ben/Downloads/yzboo/'
     paths = [os.path.join(data_dir, f) for f in os.listdir(data_dir) if f.endswith('.fits')]
     paths.sort()
