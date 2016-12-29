@@ -25,9 +25,7 @@ def pdm(time, data, period):
 
 
 def fit_transit(time, flux, period=None):
-    import matplotlib.pyplot as plt
 
-    # Fold data
     if period is None:
         time_range = time.max()-time.min()
         avg_spacing = time_range/time.size
@@ -35,48 +33,21 @@ def fit_transit(time, flux, period=None):
         stop = time_range
 
         periods = np.arange(start, stop, avg_spacing)
-
-        import time as timer
-        start = timer.time()
+        
         res = []
         for period in periods:
             res.append(pdm(time, flux, period))
-        print(timer.time()-start)
 
-        start = timer.time()
         output = ctools.phase_dispersion(time, flux, periods)
-        print(timer.time()-start)
 
-        start = timer.time()
         power = periodogram(time, flux, periods)
-        print(timer.time()-start)
-
-        plt.plot(periods, output)
-        plt.plot(periods, power)
-        plt.show()
-
-        exit()
-
-        res = np.array(res)
-        print(periods[res.argmin()])
-
-        start = timer.time()
-        periods, power = periodogram(time, flux, start=avg_spacing*10, stop=time_range, N=1e4)
-        print(timer.time()-start)
-        print(periods[power.argmax()])
-        exit()
-        plt.plot(periods, res)
-        plt.show()
-        exit()
-        period = periods[power.argmax()]
-        print(period)
+        
+        period = 25.0
 
     time %= period
-    inds = np.argsort(time)
+    inds = np.argsort(time, kind='mergesort')
     time = time[inds]
     flux = flux[inds]
-
-    period = 25.0
 
     flux /= np.median(flux)  # Data must be normalized to use the rp parameter
 
@@ -84,7 +55,7 @@ def fit_transit(time, flux, period=None):
 
     # Estimate the location of the only dip
     t0 = np.mean(time[flux < 1-(1-flux.min())/2])
-
+    
     def transit_model_partial(time, planet_radius, semi_major_axis,
                               inclination, eccentricity, longitude_of_periastron,
                               limb_linear, limb_quadratic):
@@ -101,42 +72,24 @@ def fit_transit(time, flux, period=None):
 
         return batman.TransitModel(params, time).light_curve(params)
 
-    planet_radius = 0.1
     # Fit everything, given the parameter guesses
     p0 = [planet_radius, 15.0, 89.0, 0.0, 90.0, 0.1, 0.3]
-    import matplotlib.pyplot as plt
-    plt.plot(time, flux, 'ko')
-    plt.plot(time, transit_model_partial(time, *p0))
 
     p, cov = scipy.optimize.curve_fit(transit_model_partial, time, flux, p0=p0)
-
-    plt.plot(time, transit_model_partial(time, *p))
-    plt.show()
-
-
+    
     p0 = [period, t0] + list(p)
     p, cov = scipy.optimize.curve_fit(transit_model, time, flux, p0=p0)
 
     return p
 
-'''
-def periodogram(time, data, start, stop, N=1e4):
-    """
-    Use scipy's lombscargle algorithm, faster on small data sets and produces
-    same results as matlab's lomb()
-    """
-    freq = 1/(10**np.linspace(np.log10(start), np.log10(stop), N))
-    nfactor = 2/(data.size * np.var(data))
-
-    power = nfactor * lombscargle(time, data-np.mean(data), freq*2*np.pi)
-    return 1/freq, power
-'''
 
 def transit_model(time, period, t0, planet_radius, semi_major_axis,
                   inclination, eccentricity, longitude_of_periastron,
                   limb_linear, limb_quadratic):
 
     params = batman.TransitParams()
+    
+    print(period)
 
     params.per = period
     params.t0 = t0
