@@ -4,7 +4,7 @@ from astropy.io import fits
 import matplotlib.pyplot as plt
 
 
-def fit_continuum(wavelength, flux, order=4, upper_sigma=5, lower_sigma=3):
+def fit_continuum(wavelength, flux, order=4, upper_sigma=5, lower_sigma=2):
     # Manually mask the Ca H and K lines
     mask = (abs(wavelength - 3968.5) > 6) & (abs(wavelength - 3933.7) > 6)
 
@@ -21,9 +21,7 @@ def fit_continuum(wavelength, flux, order=4, upper_sigma=5, lower_sigma=3):
         else:
             mask[mask] = new_mask
 
-    continuum = np.polyval(p, wavelength)
-
-    return continuum
+    return np.polyval(p, wavelength)
 
 
 if __name__ == '__main__':
@@ -42,7 +40,7 @@ if __name__ == '__main__':
 
     for spectrum in flux_hdulist[0].data:
         nanmask = np.invert(np.isnan(spectrum))
-        spectrum[nanmask] = spectrum[nanmask]/fit_continuum(wavelength[nanmask], spectrum[nanmask], args.order, args.upper_sigma, args.lower_sigma)
+        spectrum[nanmask] /= fit_continuum(wavelength[nanmask], spectrum[nanmask], args.order, args.upper_sigma, args.lower_sigma)
 
     flux_hdulist.writeto(args.flux_file.replace('.fits', '_normalized.fits'), clobber=True)
 
@@ -54,7 +52,7 @@ if __name__ == '__main__':
 
     original, = plt.plot(wavelength, sample, label='Original', fmt='k-')
     normalized, = plt.plot(wavelength, sample/continuum, label='Normalized', fmt='b-')
-    continuum, = plt.plot(wavelength, continuum , label='Continuum', fmt='r-')
+    continuum, = plt.plot(wavelength, continuum, label='Continuum', fmt='r-')
 
     plt.legend(handles=[original, normalized, continuum], loc='lower right')
-    plt.showw()
+    plt.show()
