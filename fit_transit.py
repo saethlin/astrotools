@@ -14,7 +14,7 @@ def periodogram(time, data, periods):
     return power
 
 
-def pdm(time, data, period):
+def phase_dispersion_minimization(time, data, period):
     mask = time > period
     mtime = time.copy()
     mtime[mask] = time[mask] % period
@@ -33,13 +33,8 @@ def fit_transit(time, flux, period=None):
         stop = time_range
 
         periods = np.arange(start, stop, avg_spacing)
-        
-        res = []
-        for period in periods:
-            res.append(pdm(time, flux, period))
 
-        output = ctools.phase_dispersion(time, flux, periods)
-
+        phase_dispersion = ctools.phase_dispersion(time, flux, periods)
         power = periodogram(time, flux, periods)
         
         period = 25.0
@@ -51,34 +46,37 @@ def fit_transit(time, flux, period=None):
 
     flux /= np.median(flux)  # Data must be normalized to use the rp parameter
 
-    planet_radius = np.sqrt(1-flux.min())
+    in_transit = flux < 1-(1-flux.min())/2
+
+    # Estimate planet radius fro mthe transit depth
+    planet_radius = np.sqrt(1-np.median(flux[in_transit]))
 
     # Estimate the location of the only dip
-    t0 = np.mean(time[flux < 1-(1-flux.min())/2])
-    
-    def transit_model_partial(time, planet_radius, semi_major_axis,
-                              inclination, eccentricity, longitude_of_periastron,
-                              limb_linear, limb_quadratic):
-        params = batman.TransitParams()
-        params.per = period
-        params.t0 = t0
-        params.rp = planet_radius
-        params.a = semi_major_axis
-        params.inc = inclination
-        params.ecc = abs(eccentricity) % 1
-        params.w = longitude_of_periastron
-        params.u = [limb_linear, limb_quadratic]
-        params.limb_dark = 'quadratic'
+    t0 = np.median(time[in_transit])
 
-        return batman.TransitModel(params, time).light_curve(params)
+    # Estimate semi-major axis from transit duration
+    duration = time[in_transit].max()-time[in_transit].min()
+    semi_major_axis = 1 / np.sin(duration * np.pi / period)
 
-    # Fit everything, given the parameter guesses
-    p0 = [planet_radius, 15.0, 89.0, 0.0, 90.0, 0.1, 0.3]
+    def transit_model_partial(time, *params):
+        return transit_model(time, period, t0, *params)
+
+    # Assume inclination of 90, with 0 eccentricity
+    p0 = [planet_radius, semi_major_axis, 90.0, 0.0, 90.0, 0.1, 0.3]
+
+    plt.plot(time, flux, 'k.')
+    plt.plot(time, transit_model_partial(time, *p0))
+    plt.show()
 
     p, cov = scipy.optimize.curve_fit(transit_model_partial, time, flux, p0=p0)
-    
+
     p0 = [period, t0] + list(p)
     p, cov = scipy.optimize.curve_fit(transit_model, time, flux, p0=p0)
+
+    #plt.plot(time, flux, 'k.')
+    #plt.plot(time, transit_model(time, *p0))
+    #plt.plot(time, transit_model(time, *p))
+    #plt.show()
 
     return p
 
@@ -89,8 +87,6 @@ def transit_model(time, period, t0, planet_radius, semi_major_axis,
 
     params = batman.TransitParams()
     
-    print(period)
-
     params.per = period
     params.t0 = t0
     params.rp = planet_radius
@@ -119,12 +115,8 @@ if __name__ == '__main__':
     params.limb_dark = 'quadratic'
 
     time = np.linspace(0, 100, 10000)
-    model = batman.TransitModel(params, time, nthreads=1)
+    model = batman.TransitModel(params, time)
     flux = model.light_curve(params)
     flux += np.random.randn(time.size) * 0.001
-
-    #import matplotlib.pyplot as plt
-    #plt.plot(time, flux, 'ko')
-    #plt.show()
 
     print(fit_transit(time, flux))

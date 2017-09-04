@@ -134,7 +134,8 @@ def maximdl_dataproc(input_directory, output_directory=None, hdu_num=0):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('input_directory', help='relative or absolute path to directory of all the data to process')
-    parser.add_argument('-out', '--output_directory', default=None, help='relative or absolute path to a directory to place all processed data. Will be created if needed. If none is given, an output directory is created next to the input directory.')
+    parser.add_argument('-out', '--output_directory', default=None,
+                        help='relative or absolute path to a directory to place all processed data. Will be created if needed. If none is given, an output directory is created next to the input directory.')
     parser.add_argument('-hdu', '--image_hdu', type=int, default=0, help='0-based index of the image HDU to process')
     args = parser.parse_args()
 

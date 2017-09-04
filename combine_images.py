@@ -2,23 +2,27 @@ import numpy as np
 
 
 @profile
+def list_comp():
+    return np.median(np.moveaxis(np.array([image for _ in range(nimages)]), 0, 2), axis=-1)
+
+
+@profile
 def last_axis():
-    stack = np.empty(image.shape + (nimages,))
+    stack = np.zeros(image.shape + (nimages,))
     for i in range(nimages):
         stack[..., i] = image
-    result = np.median(stack, axis=-1, overwrite_input=True)
+    return np.median(stack, axis=-1, overwrite_input=True)
 
 
 @profile
 def first_axis():
-    stack = np.empty((nimages,) + image.shape)
+    stack = np.zeros((nimages,) + image.shape)
     for i in range(nimages):
         stack[i] = image
-    result = np.median(stack, axis=0, overwrite_input=True)
+    return np.median(stack, axis=0, overwrite_input=True)
 
 
 image = np.random.rand(1024, 1024)
 nimages = 100
 
-last_axis()
-first_axis()
+print(np.all(last_axis() == list_comp()))

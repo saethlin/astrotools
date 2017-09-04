@@ -7,23 +7,20 @@ import os
 
 import numpy as np
 from astropy.io import fits
-from scipy.misc import imread,imsave
+from scipy.misc import imread, imsave
 
 
-'''
-Linear rescaling of an image, usually okay
-'''
-def linear_rescale(img):
-    black_level = np.percentile(img,10.)
-    white_level = np.percentile(img,80.)
-    return (img-black_level).clip(0,white_level)
+def linear_rescale(image):
+    black_level = np.percentile(image, 10.)
+    white_level = np.percentile(image, 80.)
+    return (image - black_level).clip(0, white_level)
 
 
-def find_nearest(array,value):
+def find_nearest(array, value):
     return np.abs(array-value).argmin()
 
 
-def cosmeticRGB(blu_name,vis_name):
+def cosmetic_rgb(blu_name, vis_name):
     
     SMOOTHING_WIDTH = 1.5
     WHITE_LEVEL = 4000

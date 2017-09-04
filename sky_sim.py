@@ -54,7 +54,7 @@ while True:
     location.lon = '-82.325'
 
     # Compute alt and az for each star
-    for s,star in enumerate(stars):
+    for s, star in enumerate(stars):
         star.compute(location)
         altitude[s] = star.alt
         azimuth[s] = star.az
