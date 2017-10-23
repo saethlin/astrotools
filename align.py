@@ -152,7 +152,7 @@ def align(template, image):
 if __name__ == '__main__':
     from astropy.io import fits
 
-    data_dir = '/home/ben/Downloads/yzboo/'
+    data_dir = '/home/ben/photometry_practice/'
     paths = [os.path.join(data_dir, f) for f in os.listdir(data_dir) if f.endswith('.fits')]
     paths.sort()
     template = fits.getdata(paths[0])
