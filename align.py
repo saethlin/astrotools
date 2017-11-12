@@ -26,7 +26,7 @@ def median_downsample(image, factor):
     the region [y*factor:(y+1)*factor, x*factor:(x+1)*factor].
 
     This can result in some significant loss of data but will preserve
-    most of the large features in an image.
+    most of the large features in an image. CHANGE HERE
     """
     stack = np.empty((factor, image.shape[0]//factor, image.shape[1]//factor))
 
