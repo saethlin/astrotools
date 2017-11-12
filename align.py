@@ -89,9 +89,10 @@ def align_int(template, image, span=None, y_init=0, x_init=0):
                 args = (template, image, y_init+y_offset, x_init+x_offset)
                 results.append(executor.submit(shift_int, *args))
                 coords.append([y_init + y_offset, x_init + x_offset])
-
     results = [x.result() for x in results]
+
     results = zip(results, coords)
+
     best_result = min(results, key=operator.itemgetter(0))
     return best_result[1]
 
@@ -152,7 +153,7 @@ def align(template, image):
 if __name__ == '__main__':
     from astropy.io import fits
 
-    data_dir = '/home/ben/Downloads/yzboo/'
+    data_dir = '/home/ben/photometry_practice/'
     paths = [os.path.join(data_dir, f) for f in os.listdir(data_dir) if f.endswith('.fits')]
     paths.sort()
     template = fits.getdata(paths[0])
@@ -165,4 +166,4 @@ if __name__ == '__main__':
 
         save_name = path.replace('.fits', '_aligned.fits')
         hdulist[0].data = aligned
-        hdulist.writeto(save_name, clobber=True)
+        hdulist.writeto(save_name, overwrite=True)
